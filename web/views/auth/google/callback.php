@@ -17,6 +17,9 @@ if ($result['success']) {
 } elseif (isset($result['user_not_found']) && $result['user_not_found']) {
     // User not found - redirect to login with flag
     header('Location: /auth/login?google_signup=1');
+} elseif (isset($result['requires_linking']) && $result['requires_linking']) {
+    // User exists but needs account linking
+    header('Location: /auth/link-account');
 } else {
     session_start();
     $_SESSION['flash_error'] = $result['error'];

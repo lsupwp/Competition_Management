@@ -338,44 +338,162 @@ class AuthController
             ];
         }
 
-        $user = $this->findUserByGoogleId($userInfo['google_id']);
-
-        if (!$user) {
-            $user = $this->findUserByEmail($userInfo['email']);
-
-            if ($user) {
-                $this->linkGoogleAccount($user['id'], $userInfo['google_id'], $userInfo['avatar_url']);
-            } else {
-                // User not found - store Google data in session and return flag
-                if (session_status() === PHP_SESSION_NONE) {
-                    session_start();
-                }
-                
-                $_SESSION['pending_google_user'] = [
-                    'google_id' => $userInfo['google_id'],
-                    'email' => $userInfo['email'],
-                    'name' => $userInfo['name'],
-                    'avatar_url' => $userInfo['avatar_url'],
-                ];
-                
-                return [
-                    'success' => false,
-                    'user_not_found' => true,
-                    'redirect' => '/auth/login'
-                ];
-            }
-        }
-
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
 
+        // Step 1: Check if user exists with this google_id
+        $user = $this->findUserByGoogleId($userInfo['google_id']);
+
+        if ($user) {
+            // User exists and linked with this google_id → Login success
+            $_SESSION['user'] = [
+                'id' => $user['id'],
+                'email' => $user['email'],
+                'name' => $user['name'],
+                'avatar_url' => $user['avatar_url'] ?? $userInfo['avatar_url'],
+            ];
+
+            return [
+                'success' => true,
+                'redirect' => '/'
+            ];
+        }
+
+        // Step 2: Check if user exists with this email
+        $user = $this->findUserByEmail($userInfo['email']);
+
+        if (!$user) {
+            // No user found → Prompt account creation
+            $_SESSION['pending_google_user'] = [
+                'google_id' => $userInfo['google_id'],
+                'email' => $userInfo['email'],
+                'name' => $userInfo['name'],
+                'avatar_url' => $userInfo['avatar_url'],
+            ];
+
+            return [
+                'success' => false,
+                'user_not_found' => true,
+                'redirect' => '/auth/login'
+            ];
+        }
+
+        // Step 3: User exists but not linked with google_id
+        if ($user['email_verified_at'] === null) {
+            // UNVERIFIED: Wipe old record, promote to VERIFIED with Google
+            $this->promoteUnverifiedToGoogle($user['id'], $userInfo);
+
+            // Get updated user
+            $updatedUser = $this->findUserById($user['id']);
+
+            $_SESSION['user'] = [
+                'id' => $updatedUser['id'],
+                'email' => $updatedUser['email'],
+                'name' => $updatedUser['name'],
+                'avatar_url' => $updatedUser['avatar_url'] ?? $userInfo['avatar_url'],
+            ];
+
+            return [
+                'success' => true,
+                'redirect' => '/'
+            ];
+        } else {
+            // VERIFIED: Requires account linking
+            $_SESSION['pending_google_link'] = [
+                'google_id' => $userInfo['google_id'],
+                'email' => $userInfo['email'],
+                'name' => $userInfo['name'],
+                'avatar_url' => $userInfo['avatar_url'],
+                'existing_user_id' => $user['id'],
+            ];
+
+            return [
+                'success' => false,
+                'requires_linking' => true,
+                'redirect' => '/auth/link-account'
+            ];
+        }
+    }
+
+    private function promoteUnverifiedToGoogle(int $userId, array $googleData): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE users 
+            SET google_id = ?, 
+                name = ?, 
+                avatar_url = ?, 
+                password_hash = NULL,
+                email_verified_at = NOW(),
+                verification_token = NULL,
+                verification_token_expires_at = NULL
+            WHERE id = ?
+        ");
+        $stmt->bind_param('ssssi', 
+            $googleData['google_id'],
+            $googleData['name'],
+            $googleData['avatar_url'],
+            $userId
+        );
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    public function getLinkAccountData(): ?array
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        return $_SESSION['pending_google_link'] ?? null;
+    }
+
+    public function linkAccountWithPassword(array $data): array
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if (!isset($_SESSION['pending_google_link'])) {
+            return [
+                'success' => false,
+                'error' => 'No pending Google link'
+            ];
+        }
+
+        $pendingData = $_SESSION['pending_google_link'];
+        $password = $data['password'] ?? '';
+
+        // Get existing user
+        $user = $this->findUserById($pendingData['existing_user_id']);
+
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            return [
+                'success' => false,
+                'error' => 'Invalid password'
+            ];
+        }
+
+        // Link Google account
+        $stmt = $this->db->prepare("
+            UPDATE users 
+            SET google_id = ?
+            WHERE id = ?
+        ");
+        $stmt->bind_param('si', $pendingData['google_id'], $user['id']);
+        $stmt->execute();
+        $stmt->close();
+
+        // Set session
         $_SESSION['user'] = [
             'id' => $user['id'],
             'email' => $user['email'],
             'name' => $user['name'],
-            'avatar_url' => $user['avatar_url'] ?? $userInfo['avatar_url'],
+            'avatar_url' => $user['avatar_url'] ?? $pendingData['avatar_url'],
         ];
+
+        // Clear pending data
+        unset($_SESSION['pending_google_link']);
 
         return [
             'success' => true,
