@@ -346,8 +346,23 @@ class AuthController
             if ($user) {
                 $this->linkGoogleAccount($user['id'], $userInfo['google_id'], $userInfo['avatar_url']);
             } else {
-                $userId = $this->createGoogleUser($userInfo);
-                $user = $this->findUserById($userId);
+                // User not found - store Google data in session and return flag
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                
+                $_SESSION['pending_google_user'] = [
+                    'google_id' => $userInfo['google_id'],
+                    'email' => $userInfo['email'],
+                    'name' => $userInfo['name'],
+                    'avatar_url' => $userInfo['avatar_url'],
+                ];
+                
+                return [
+                    'success' => false,
+                    'user_not_found' => true,
+                    'redirect' => '/auth/login'
+                ];
             }
         }
 
@@ -361,6 +376,56 @@ class AuthController
             'name' => $user['name'],
             'avatar_url' => $user['avatar_url'] ?? $userInfo['avatar_url'],
         ];
+
+        return [
+            'success' => true,
+            'redirect' => '/'
+        ];
+    }
+
+    public function createAccountFromGoogle(): array
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if (!isset($_SESSION['pending_google_user'])) {
+            return [
+                'success' => false,
+                'error' => 'No pending Google account'
+            ];
+        }
+
+        $googleData = $_SESSION['pending_google_user'];
+
+        // Create user
+        $stmt = $this->db->prepare("
+            INSERT INTO users (email, name, google_id, avatar_url, email_verified_at) 
+            VALUES (?, ?, ?, ?, NOW())
+        ");
+        $stmt->bind_param('ssss', 
+            $googleData['email'], 
+            $googleData['name'], 
+            $googleData['google_id'], 
+            $googleData['avatar_url']
+        );
+        $stmt->execute();
+        $userId = $this->db->insert_id;
+        $stmt->close();
+
+        // Get created user
+        $user = $this->findUserById($userId);
+
+        // Set session
+        $_SESSION['user'] = [
+            'id' => $user['id'],
+            'email' => $user['email'],
+            'name' => $user['name'],
+            'avatar_url' => $user['avatar_url'],
+        ];
+
+        // Clear pending data
+        unset($_SESSION['pending_google_user']);
 
         return [
             'success' => true,

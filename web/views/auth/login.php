@@ -11,6 +11,8 @@ $title = 'Login - Team Competition';
 
 $error = '';
 $success = '';
+$showGoogleSignupModal = false;
+$pendingGoogleUser = null;
 
 session_start();
 
@@ -20,7 +22,26 @@ if (isset($_SESSION['flash_error'])) {
     unset($_SESSION['flash_error']);
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Check if coming from Google OAuth with no account
+if (isset($_GET['google_signup']) && $_GET['google_signup'] === '1') {
+    if (isset($_SESSION['pending_google_user'])) {
+        $showGoogleSignupModal = true;
+        $pendingGoogleUser = $_SESSION['pending_google_user'];
+    }
+}
+
+// Handle AJAX request for creating account from Google
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_google_account') {
+    header('Content-Type: application/json');
+    
+    $authController = new \App\Controllers\AuthController();
+    $result = $authController->createAccountFromGoogle();
+    
+    echo json_encode($result);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $authController = new \App\Controllers\AuthController();
     $result = $authController->login($_POST);
     
@@ -113,6 +134,90 @@ ob_start();
         </div>
     </div>
 </div>
+
+<?php if ($showGoogleSignupModal && $pendingGoogleUser): ?>
+<!-- Google Signup Modal -->
+<dialog id="googleSignupModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Account Not Found</h3>
+        <p class="py-4">
+            No account found for <strong><?= htmlspecialchars($pendingGoogleUser['email']) ?></strong>.<br>
+            Would you like to create an account with this Google account?
+        </p>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn" id="cancelGoogleSignup">No, Cancel</button>
+            </form>
+            <button class="btn btn-primary" id="confirmGoogleSignup">
+                <span id="createBtnText">Yes, Create Account</span>
+                <span id="createBtnLoading" class="hidden">
+                    <span class="loading loading-spinner loading-sm"></span>
+                    Creating...
+                </span>
+            </button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('googleSignupModal');
+    const confirmBtn = document.getElementById('confirmGoogleSignup');
+    const cancelBtn = document.getElementById('cancelGoogleSignup');
+    const createBtnText = document.getElementById('createBtnText');
+    const createBtnLoading = document.getElementById('createBtnLoading');
+    
+    // Show modal on page load
+    if (modal) {
+        modal.showModal();
+    }
+    
+    // Handle cancel
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', function() {
+            // Clear session by reloading without parameter
+            window.location.href = '/auth/login';
+        });
+    }
+    
+    // Handle confirm - create account
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async function() {
+            // Show loading
+            confirmBtn.disabled = true;
+            createBtnText.classList.add('hidden');
+            createBtnLoading.classList.remove('hidden');
+            
+            try {
+                const formData = new FormData();
+                formData.append('action', 'create_google_account');
+                
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    window.location.href = result.redirect || '/';
+                } else {
+                    alert(result.error || 'Failed to create account');
+                    window.location.href = '/auth/login';
+                }
+            } catch (error) {
+                alert('An error occurred. Please try again.');
+                window.location.href = '/auth/login';
+            }
+        });
+    }
+});
+</script>
+<?php endif; ?>
+
 <?php
 $content = ob_get_clean();
 include_once __DIR__ . '/../../templates/layout.php';

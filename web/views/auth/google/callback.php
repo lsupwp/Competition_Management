@@ -14,6 +14,9 @@ $result = $authController->handleGoogleCallback($_GET['code']);
 
 if ($result['success']) {
     header('Location: ' . $result['redirect']);
+} elseif (isset($result['user_not_found']) && $result['user_not_found']) {
+    // User not found - redirect to login with flag
+    header('Location: /auth/login?google_signup=1');
 } else {
     session_start();
     $_SESSION['flash_error'] = $result['error'];
