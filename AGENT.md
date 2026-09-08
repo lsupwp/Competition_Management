@@ -51,6 +51,8 @@ web/                      # Web application root
       -> forgot-password.php  # /auth/forgot-password
       -> verify.php       # /auth/verify
       -> logout.php       # /auth/logout
+      -> google.php       # /auth/google (redirect to Google)
+      -> google-callback.php  # /auth/google/callback
   -> api/                 # Reusable PHP components (include in views)
     -> hello.php          # Example component
   -> src/                 # PHP classes (OOP)
@@ -59,7 +61,8 @@ web/                      # Web application root
     -> Services/          # Business logic
       -> Database.php     # DB connection (mysqli OOP singleton)
       -> EmailService.php # PHPMailer wrapper
-      -> CsrfService.php  # CSRF protection (symfony/security-csrf)
+      -> CsrfService.php  # CSRF protection (session-based)
+      -> GoogleAuthService.php  # Google OAuth (league/oauth2-google)
     -> Models/            # Data models (future)
   -> templates/           # Reusable templates
     -> layout.php         # Main layout (header + footer)
@@ -201,6 +204,23 @@ Team Competition Management System:
   - Store user info in `$_SESSION['user']` after login
   - Session contains: `id`, `email`, `name`, `avatar_url`
   - Logout: destroy session and redirect to login page
+
+- **Google OAuth flow:**
+  1. User clicks "Login with Google" or "Register with Google"
+  2. Redirect to `/auth/google` → generates Google auth URL
+  3. User authenticates on Google
+  4. Google redirects to `/auth/google/callback` with code
+  5. Exchange code for user info via `GoogleAuthService`
+  6. Check if user exists:
+     - If user exists with google_id → login
+     - If user exists with same email → link Google account
+     - If user doesn't exist → create new user (auto-verified)
+  7. Store in session and redirect to home
+
+- **Google OAuth Config (.env):**
+  - `GOOGLE_CLIENT_ID` - Google OAuth client ID
+  - `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+  - `GOOGLE_REDIRECT_URI` - Callback URL (must match Google Console)
 
 - **Navbar:**
   - Show profile dropdown when user is logged in

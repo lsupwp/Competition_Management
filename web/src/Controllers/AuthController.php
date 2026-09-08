@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Services\Database;
 use App\Services\EmailService;
 use App\Services\CsrfService;
+use App\Services\GoogleAuthService;
 
 class AuthController
 {
@@ -303,5 +304,123 @@ class AuthController
         $stmt->bind_param('ssi', $token, $expiresAt, $userId);
         $stmt->execute();
         $stmt->close();
+    }
+
+    public function getGoogleAuthUrl(): string
+    {
+        $googleAuth = new GoogleAuthService();
+        return $googleAuth->getAuthUrl();
+    }
+
+    public function handleGoogleCallback(string $code): array
+    {
+        $googleAuth = new GoogleAuthService();
+        $userInfo = $googleAuth->authenticate($code);
+
+        if (!$userInfo) {
+            return [
+                'success' => false,
+                'error' => 'Failed to authenticate with Google'
+            ];
+        }
+
+        if (!$userInfo['email_verified']) {
+            return [
+                'success' => false,
+                'error' => 'Google email is not verified'
+            ];
+        }
+
+        $user = $this->findUserByGoogleId($userInfo['google_id']);
+
+        if (!$user) {
+            $user = $this->findUserByEmail($userInfo['email']);
+
+            if ($user) {
+                $this->linkGoogleAccount($user['id'], $userInfo['google_id'], $userInfo['avatar_url']);
+            } else {
+                $userId = $this->createGoogleUser($userInfo);
+                $user = $this->findUserById($userId);
+            }
+        }
+
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        $_SESSION['user'] = [
+            'id' => $user['id'],
+            'email' => $user['email'],
+            'name' => $user['name'],
+            'avatar_url' => $user['avatar_url'] ?? $userInfo['avatar_url'],
+        ];
+
+        return [
+            'success' => true,
+            'redirect' => '/'
+        ];
+    }
+
+    private function findUserByGoogleId(string $googleId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT id, email, name, avatar_url, email_verified_at 
+            FROM users 
+            WHERE google_id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('s', $googleId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+
+        return $user;
+    }
+
+    private function findUserById(int $id): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT id, email, name, avatar_url, email_verified_at 
+            FROM users 
+            WHERE id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+
+        return $user;
+    }
+
+    private function linkGoogleAccount(int $userId, string $googleId, ?string $avatarUrl): void
+    {
+        $stmt = $this->db->prepare("
+            UPDATE users 
+            SET google_id = ?, avatar_url = COALESCE(?, avatar_url), email_verified_at = COALESCE(email_verified_at, NOW())
+            WHERE id = ?
+        ");
+        $stmt->bind_param('ssi', $googleId, $avatarUrl, $userId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    private function createGoogleUser(array $userInfo): int
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO users (email, name, google_id, avatar_url, email_verified_at) 
+            VALUES (?, ?, ?, ?, NOW())
+        ");
+        $stmt->bind_param('ssss', 
+            $userInfo['email'], 
+            $userInfo['name'], 
+            $userInfo['google_id'], 
+            $userInfo['avatar_url']
+        );
+        $stmt->execute();
+        $userId = $this->db->insert_id;
+        $stmt->close();
+
+        return $userId;
     }
 }
