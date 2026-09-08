@@ -50,6 +50,7 @@ web/                      # Web application root
       -> register.php     # /auth/register
       -> forgot-password.php  # /auth/forgot-password
       -> verify.php       # /auth/verify
+      -> logout.php       # /auth/logout
   -> api/                 # Reusable PHP components (include in views)
     -> hello.php          # Example component
   -> src/                 # PHP classes (OOP)
@@ -195,6 +196,20 @@ Team Competition Management System:
   - `SMTP_ENCRYPTION` - tls or ssl
   - `MAIL_FROM_ADDRESS` - Sender email
   - `MAIL_FROM_NAME` - Sender name
+
+- **Session Management:**
+  - Store user info in `$_SESSION['user']` after login
+  - Session contains: `id`, `email`, `name`, `avatar_url`
+  - Logout: destroy session and redirect to login page
+
+- **Navbar:**
+  - Show profile dropdown when user is logged in
+  - Dropdown menu items:
+    - Settings (`/settings`)
+    - Manage Team (`/team/manage`)
+    - Join Team (`/team/join`)
+    - Logout (`/auth/logout`)
+  - Show Login button when user is not logged in
 
 ## Security
 - **CSRF Protection:** ทุก POST form ต้องมี CSRF token

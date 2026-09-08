@@ -153,7 +153,17 @@ class AuthController
             ];
         }
 
-        // TODO: Implement session management
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        $_SESSION['user'] = [
+            'id' => $user['id'],
+            'email' => $user['email'],
+            'name' => $user['name'],
+            'avatar_url' => $user['avatar_url'] ?? null,
+        ];
+
         return [
             'success' => true,
             'message' => 'Login successful',
