@@ -1,9 +1,9 @@
 <header class="navbar bg-base-100 shadow-lg">
-    <div class="container mx-auto">
+    <div class="container mx-auto flex items-center">
         <div class="flex-1">
             <a href="/" class="btn btn-ghost text-xl">Team Comp</a>
         </div>
-        <div class="flex-none gap-2">
+        <div class="flex-none gap-2 flex items-center">
             <ul class="menu menu-horizontal px-1">
                 <li><a href="/">Home</a></li>
                 <li><a href="/team">Teams</a></li>
