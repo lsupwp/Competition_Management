@@ -1,0 +1,42 @@
+# Composer
+/vendor/
+composer.lock
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose.override.yml
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Temp files
+*.tmp
+*.cache
+.cache/
+
+# Uploads
+/uploads/
+/storage/
+
+# Node (if using Tailwind CLI later)
+/node_modules/
+npm-debug.log
+yarn-error.log
