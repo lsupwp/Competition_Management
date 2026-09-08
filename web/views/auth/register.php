@@ -76,6 +76,7 @@ ob_start();
                 $inputType = 'password';
                 $inputPlaceholder = '••••••••';
                 $inputRequired = true;
+                $inputTogglePassword = true;
                 include __DIR__ . '/../../templates/components/input.php';
                 ?>
 
@@ -85,6 +86,7 @@ ob_start();
                 $inputType = 'password';
                 $inputPlaceholder = '••••••••';
                 $inputRequired = true;
+                $inputTogglePassword = true;
                 include __DIR__ . '/../../templates/components/input.php';
                 ?>
 
@@ -138,6 +140,26 @@ document.getElementById('registerForm').addEventListener('submit', function() {
     btn.disabled = true;
     btnText.classList.add('hidden');
     btnLoading.classList.remove('hidden');
+});
+
+// Toggle password visibility
+document.querySelectorAll('.toggle-password').forEach(button => {
+    button.addEventListener('click', function() {
+        const targetId = this.dataset.target;
+        const input = document.getElementById(targetId);
+        const eyeOpen = this.querySelector('.eye-open');
+        const eyeClosed = this.querySelector('.eye-closed');
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeOpen.classList.add('hidden');
+            eyeClosed.classList.remove('hidden');
+        } else {
+            input.type = 'password';
+            eyeOpen.classList.remove('hidden');
+            eyeClosed.classList.add('hidden');
+        }
+    });
 });
 </script>
 
