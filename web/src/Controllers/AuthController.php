@@ -429,7 +429,7 @@ class AuthController
                 verification_token_expires_at = NULL
             WHERE id = ?
         ");
-        $stmt->bind_param('ssssi', 
+        $stmt->bind_param('sssi', 
             $googleData['google_id'],
             $googleData['name'],
             $googleData['avatar_url'],
