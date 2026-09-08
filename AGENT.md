@@ -4,6 +4,7 @@
 - **Language:** PHP 8.2+ (Vanilla, OOP)
 - **CSS:** Tailwind CSS v4 + DaisyUI v5 only
 - **Database:** MariaDB 10.11
+- **Database Driver:** mysqli (OOP style)
 - **Package Manager:** Composer (autoloading + phpdotenv)
 - **Environment:** vlucas/phpdotenv
 
@@ -48,8 +49,17 @@ web/                      # Web application root
       -> login.php        # /auth/login
       -> register.php     # /auth/register
       -> forgot-password.php  # /auth/forgot-password
+      -> verify.php       # /auth/verify
   -> api/                 # Reusable PHP components (include in views)
     -> hello.php          # Example component
+  -> src/                 # PHP classes (OOP)
+    -> Controllers/       # Request handlers
+      -> AuthController.php  # Register, login, verify
+    -> Services/          # Business logic
+      -> Database.php     # DB connection (mysqli OOP singleton)
+      -> EmailService.php # PHPMailer wrapper
+      -> CsrfService.php  # CSRF protection (symfony/security-csrf)
+    -> Models/            # Data models (future)
   -> templates/           # Reusable templates
     -> layout.php         # Main layout (header + footer)
     -> header.php         # Navbar
@@ -64,6 +74,33 @@ web/                      # Web application root
 ```
 
 ## Code Patterns
+
+### Database Query (mysqli OOP)
+```php
+// Get database instance
+$db = Database::getInstance();
+
+// SELECT with prepared statement
+$stmt = $db->prepare("SELECT id, name FROM users WHERE email = ?");
+$stmt->bind_param('s', $email);
+$stmt->execute();
+$result = $stmt->get_result();
+$user = $result->fetch_assoc();
+$stmt->close();
+
+// INSERT
+$stmt = $db->prepare("INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)");
+$stmt->bind_param('sss', $email, $name, $passwordHash);
+$stmt->execute();
+$userId = $db->insert_id;
+$stmt->close();
+
+// UPDATE
+$stmt = $db->prepare("UPDATE users SET name = ? WHERE id = ?");
+$stmt->bind_param('si', $name, $userId);
+$stmt->execute();
+$stmt->close();
+```
 
 ### View with include component
 ```php
@@ -123,7 +160,7 @@ Team Competition Management System:
 - Google login authentication
 
 ## Database Schema
-- **users** - Google login, email, avatar
+- **users** - Google login, email, avatar, password_hash, verification_token
 - **teams** - Team info, owner reference
 - **team_members** - Team membership with roles (owner/admin/member)
 - **team_invitations** - Invite tokens with expiry
@@ -134,10 +171,44 @@ Team Competition Management System:
 - **event_visibility** - Control who can see private events
 - **sessions** - Session management
 
+## Authentication System
+- **Register flow:**
+  1. User fills form → validate data
+  2. Check if email exists:
+     - If email exists and verified → deny registration
+     - If email exists but not verified → overwrite (update) user data
+     - If email doesn't exist → create new user
+  3. Generate verification token (expires in 24 hours)
+  4. Send verification email via PHPMailer
+  5. User clicks link → verify email → can login
+
+- **Email verification:**
+  - Token stored in `users.verification_token`
+  - Expires in 24 hours (`verification_token_expires_at`)
+  - Verify URL: `/auth/verify?token=xxx`
+
+- **SMTP Config (.env):**
+  - `SMTP_HOST` - SMTP server (e.g., smtp.gmail.com)
+  - `SMTP_PORT` - SMTP port (default: 587)
+  - `SMTP_USERNAME` - SMTP username
+  - `SMTP_PASSWORD` - SMTP password / app password
+  - `SMTP_ENCRYPTION` - tls or ssl
+  - `MAIL_FROM_ADDRESS` - Sender email
+  - `MAIL_FROM_NAME` - Sender name
+
+## Security
+- **CSRF Protection:** ทุก POST form ต้องมี CSRF token
+  - ใช้ PHP session เก็บ token (หมดอายุ 2 ชั่วโมง)
+  - `CsrfService::generateToken()` สร้าง token
+  - `CsrfService::validateToken($token)` ตรวจสอบ
+  - Component: `web/templates/components/csrf.php`
+  - Usage ใน form: `<?php include __DIR__ . '/../../templates/components/csrf.php'; ?>`
+
 ## Rules
 - No .htaccess files
 - All config through .env
 - OOP only, Vanilla PHP
+- Database: mysqli OOP style (no PDO)
 - Tailwind CSS v4 + DaisyUI v5 for styling (no other CSS frameworks)
 - No API endpoints (JSON) - ทุกอย่างเป็น PHP page
 - ใช้ `include` สำหรับ component ที่อาจใช้ซ้ำ (เช่น card, button, alert)

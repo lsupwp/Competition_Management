@@ -1,36 +1,73 @@
 <?php
 // Route: /auth/register
+require_once __DIR__ . '/../../vendor/autoload.php';
+
 $title = 'Register - Team Competition';
+
+$error = '';
+$success = '';
+$old = ['name' => '', 'email' => ''];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $authController = new \App\Controllers\AuthController();
+    $result = $authController->register($_POST);
+    
+    if ($result['success']) {
+        $success = $result['message'];
+    } else {
+        $error = $result['error'] ?? '';
+        $old = [
+            'name' => $_POST['name'] ?? '',
+            'email' => $_POST['email'] ?? '',
+        ];
+    }
+}
 
 ob_start();
 ?>
 <div class="min-h-[80vh] flex items-center justify-center py-8">
     <div class="card bg-base-100 shadow-xl w-full max-w-md">
         <div class="card-body">
-            <h2 class="card-title text-2xl font-bold justify-center mb-4">สมัครสมาชิก</h2>
+            <h2 class="card-title text-2xl font-bold justify-center mb-4">Register</h2>
 
-            <form method="POST" class="space-y-4">
+            <?php if ($success): ?>
+            <div class="alert alert-success">
+                <span><?= htmlspecialchars($success) ?></span>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($error): ?>
+            <div class="alert alert-error">
+                <span><?= htmlspecialchars($error) ?></span>
+            </div>
+            <?php endif; ?>
+
+            <form method="POST" class="space-y-4" id="registerForm">
+                <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+
                 <?php
                 $inputName = 'name';
-                $inputLabel = 'ชื่อผู้ใช้';
+                $inputLabel = 'Name';
                 $inputType = 'text';
                 $inputPlaceholder = 'John Doe';
+                $inputValue = $old['name'];
                 $inputRequired = true;
                 include __DIR__ . '/../../templates/components/input.php';
                 ?>
 
                 <?php
                 $inputName = 'email';
-                $inputLabel = 'อีเมล';
+                $inputLabel = 'Email';
                 $inputType = 'email';
                 $inputPlaceholder = 'your@email.com';
+                $inputValue = $old['email'];
                 $inputRequired = true;
                 include __DIR__ . '/../../templates/components/input.php';
                 ?>
 
                 <?php
                 $inputName = 'password';
-                $inputLabel = 'รหัสผ่าน';
+                $inputLabel = 'Password';
                 $inputType = 'password';
                 $inputPlaceholder = '••••••••';
                 $inputRequired = true;
@@ -39,7 +76,7 @@ ob_start();
 
                 <?php
                 $inputName = 'password_confirmation';
-                $inputLabel = 'ยืนยันรหัสผ่าน';
+                $inputLabel = 'Confirm Password';
                 $inputType = 'password';
                 $inputPlaceholder = '••••••••';
                 $inputRequired = true;
@@ -50,20 +87,22 @@ ob_start();
                     <label class="label cursor-pointer justify-start gap-2">
                         <input type="checkbox" name="terms" class="checkbox checkbox-primary checkbox-sm" required />
                         <span class="label-text">
-                            ฉันยอมรับ
-                            <a href="/terms" class="link link-primary">เงื่อนไขการใช้งาน</a>
+                            I agree to the
+                            <a href="/terms" class="link link-primary">Terms of Service</a>
                         </span>
                     </label>
                 </div>
 
-                <?php
-                $btnText = 'สมัครสมาชิก';
-                $btnClass = 'btn-primary w-full';
-                include __DIR__ . '/../../templates/components/button.php';
-                ?>
+                <button type="submit" class="btn btn-primary w-full" id="submitBtn">
+                    <span id="btnText">Register</span>
+                    <span id="btnLoading" class="hidden">
+                        <span class="loading loading-spinner"></span>
+                        Sending...
+                    </span>
+                </button>
             </form>
 
-            <div class="divider">หรือ</div>
+            <div class="divider">OR</div>
 
             <button class="btn btn-outline w-full gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 48">
@@ -72,18 +111,31 @@ ob_start();
                     <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
                     <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
                 </svg>
-                สมัครสมาชิกด้วย Google
+                Register with Google
             </button>
 
             <div class="text-center mt-4">
                 <p class="text-sm">
-                    มีบัญชีแล้ว?
-                    <a href="/auth/login" class="link link-primary">เข้าสู่ระบบ</a>
+                    Already have an account?
+                    <a href="/auth/login" class="link link-primary">Login</a>
                 </p>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('registerForm').addEventListener('submit', function() {
+    const btn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const btnLoading = document.getElementById('btnLoading');
+    
+    btn.disabled = true;
+    btnText.classList.add('hidden');
+    btnLoading.classList.remove('hidden');
+});
+</script>
+
 <?php
 $content = ob_get_clean();
 include_once __DIR__ . '/../../templates/layout.php';
