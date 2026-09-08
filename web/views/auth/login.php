@@ -15,19 +15,26 @@ if (isset($_SESSION['flash_error'])) {
     unset($_SESSION['flash_error']);
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $authController = new \App\Controllers\AuthController();
-    $result = $authController->login($_POST);
+// Handle AJAX requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
+    header('Content-Type: application/json');
     
-    if ($result['success']) {
-        $success = $result['message'] ?? '';
-        if (!empty($result['redirect'])) {
-            header('Location: ' . $result['redirect']);
+    $authController = new \App\Controllers\AuthController();
+    
+    if (isset($_POST['action'])) {
+        if ($_POST['action'] === 'login') {
+            $result = $authController->login($_POST);
+            echo json_encode($result);
+            exit;
+        } elseif ($_POST['action'] === 'quick_register') {
+            $result = $authController->quickRegister($_POST);
+            echo json_encode($result);
             exit;
         }
-    } else {
-        $error = $result['error'] ?? '';
     }
+    
+    echo json_encode(['success' => false, 'error' => 'Invalid action']);
+    exit;
 }
 
 ob_start();
@@ -49,7 +56,7 @@ ob_start();
             </div>
             <?php endif; ?>
 
-            <form method="POST" class="space-y-4">
+            <form id="loginForm" class="space-y-4">
                 <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
 
                 <?php
@@ -77,11 +84,13 @@ ob_start();
                     </label>
                 </div>
 
-                <?php
-                $btnText = 'Login';
-                $btnClass = 'btn-primary w-full';
-                include __DIR__ . '/../../templates/components/button.php';
-                ?>
+                <button type="submit" class="btn btn-primary w-full" id="loginBtn">
+                    <span id="loginBtnText">Login</span>
+                    <span id="loginBtnLoading" class="hidden">
+                        <span class="loading loading-spinner"></span>
+                        Logging in...
+                    </span>
+                </button>
             </form>
 
             <div class="divider">OR</div>
@@ -108,6 +117,142 @@ ob_start();
         </div>
     </div>
 </div>
+
+<!-- Create Account Modal -->
+<dialog id="createAccountModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Account Not Found</h3>
+        <p class="py-4">This email is not registered. Would you like to create an account?</p>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn" id="cancelCreateBtn">No</button>
+            </form>
+            <button class="btn btn-primary" id="confirmCreateBtn">
+                <span id="createBtnText">Yes, Create Account</span>
+                <span id="createBtnLoading" class="hidden">
+                    <span class="loading loading-spinner loading-sm"></span>
+                    Creating...
+                </span>
+            </button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<script>
+const loginForm = document.getElementById('loginForm');
+const loginBtn = document.getElementById('loginBtn');
+const loginBtnText = document.getElementById('loginBtnText');
+const loginBtnLoading = document.getElementById('loginBtnLoading');
+const createAccountModal = document.getElementById('createAccountModal');
+const confirmCreateBtn = document.getElementById('confirmCreateBtn');
+const createBtnText = document.getElementById('createBtnText');
+const createBtnLoading = document.getElementById('createBtnLoading');
+
+let pendingEmail = '';
+let pendingPassword = '';
+let csrfToken = '';
+
+// Get CSRF token
+csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = document.querySelector('input[name="email"]').value;
+    const password = document.querySelector('input[name="password"]').value;
+    
+    // Show loading
+    loginBtn.disabled = true;
+    loginBtnText.classList.add('hidden');
+    loginBtnLoading.classList.remove('hidden');
+    
+    // Clear previous errors
+    const errorAlert = document.querySelector('.alert-error');
+    if (errorAlert) errorAlert.remove();
+    
+    try {
+        const formData = new FormData();
+        formData.append('ajax', '1');
+        formData.append('action', 'login');
+        formData.append('email', email);
+        formData.append('password', password);
+        formData.append('csrf_token', csrfToken);
+        
+        const response = await fetch('/auth/login', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            window.location.href = result.redirect || '/';
+        } else if (result.email_not_found) {
+            // Show modal
+            pendingEmail = email;
+            pendingPassword = password;
+            createAccountModal.showModal();
+        } else {
+            // Show error
+            showError(result.error);
+        }
+    } catch (error) {
+        showError('An error occurred. Please try again.');
+    } finally {
+        loginBtn.disabled = false;
+        loginBtnText.classList.remove('hidden');
+        loginBtnLoading.classList.add('hidden');
+    }
+});
+
+confirmCreateBtn.addEventListener('click', async () => {
+    // Show loading
+    confirmCreateBtn.disabled = true;
+    createBtnText.classList.add('hidden');
+    createBtnLoading.classList.remove('hidden');
+    
+    try {
+        const formData = new FormData();
+        formData.append('ajax', '1');
+        formData.append('action', 'quick_register');
+        formData.append('email', pendingEmail);
+        formData.append('password', pendingPassword);
+        formData.append('csrf_token', csrfToken);
+        
+        const response = await fetch('/auth/login', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            window.location.href = result.redirect || '/';
+        } else {
+            createAccountModal.close();
+            showError(result.error);
+        }
+    } catch (error) {
+        createAccountModal.close();
+        showError('An error occurred. Please try again.');
+    } finally {
+        confirmCreateBtn.disabled = false;
+        createBtnText.classList.remove('hidden');
+        createBtnLoading.classList.add('hidden');
+    }
+});
+
+function showError(message) {
+    const cardBody = document.querySelector('.card-body');
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-error';
+    alertDiv.innerHTML = `<span>${message}</span>`;
+    cardBody.insertBefore(alertDiv, cardBody.firstChild);
+}
+</script>
 <?php
 $content = ob_get_clean();
 include_once __DIR__ . '/../../templates/layout.php';
