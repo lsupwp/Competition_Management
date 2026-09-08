@@ -143,8 +143,7 @@ class AuthController
         if (!$user) {
             return [
                 'success' => false,
-                'error' => 'Email not found',
-                'email_not_found' => true
+                'error' => 'Invalid email or password'
             ];
         }
 
@@ -176,72 +175,6 @@ class AuthController
         return [
             'success' => true,
             'message' => 'Login successful',
-            'redirect' => '/'
-        ];
-    }
-
-    public function quickRegister(array $data): array
-    {
-        if (!CsrfService::validateToken($data['csrf_token'] ?? null)) {
-            return [
-                'success' => false,
-                'error' => 'Invalid or expired token. Please try again.'
-            ];
-        }
-
-        if (empty($data['email'])) {
-            return ['success' => false, 'error' => 'Email is required'];
-        }
-
-        if (empty($data['password'])) {
-            return ['success' => false, 'error' => 'Password is required'];
-        }
-
-        if (mb_strlen($data['password']) < 8) {
-            return ['success' => false, 'error' => 'Password must be at least 8 characters long'];
-        }
-
-        $email = trim($data['email']);
-        $password = $data['password'];
-        
-        // Extract name from email (before @)
-        $name = explode('@', $email)[0];
-
-        // Check if email already exists
-        $existingUser = $this->findUserByEmail($email);
-        if ($existingUser) {
-            return [
-                'success' => false,
-                'error' => 'This email is already in use'
-            ];
-        }
-
-        // Create user with auto-verified email
-        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-        $stmt = $this->db->prepare("
-            INSERT INTO users (email, name, password_hash, email_verified_at) 
-            VALUES (?, ?, ?, NOW())
-        ");
-        $stmt->bind_param('sss', $email, $name, $passwordHash);
-        $stmt->execute();
-        $userId = $this->db->insert_id;
-        $stmt->close();
-
-        // Auto login
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        $_SESSION['user'] = [
-            'id' => $userId,
-            'email' => $email,
-            'name' => $name,
-            'avatar_url' => null,
-        ];
-
-        return [
-            'success' => true,
-            'message' => 'Account created successfully',
             'redirect' => '/'
         ];
     }
