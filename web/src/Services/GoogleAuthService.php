@@ -10,16 +10,10 @@ class GoogleAuthService
 
     public function __construct()
     {
-        // Load environment variables if not already loaded
-        if (!isset($_ENV['GOOGLE_CLIENT_ID'])) {
-            $dotenv = \Dotenv\Dotenv::createImmutable(dirname(__DIR__, 2));
-            $dotenv->load();
-        }
-        
         $this->provider = new Google([
-            'clientId' => $_ENV['GOOGLE_CLIENT_ID'],
-            'clientSecret' => $_ENV['GOOGLE_CLIENT_SECRET'],
-            'redirectUri' => $_ENV['GOOGLE_REDIRECT_URI'],
+            'clientId' => $_ENV['GOOGLE_CLIENT_ID'] ?? '',
+            'clientSecret' => $_ENV['GOOGLE_CLIENT_SECRET'] ?? '',
+            'redirectUri' => $_ENV['GOOGLE_REDIRECT_URI'] ?? '',
         ]);
     }
 
