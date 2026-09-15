@@ -32,7 +32,26 @@ $success = '';
 $showEmailVerifyModal = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action']) && $_POST['action'] === 'change_email') {
+    if (isset($_POST['action']) && $_POST['action'] === 'edit_profile') {
+        $name = trim($_POST['name'] ?? '');
+        
+        if (empty($name)) {
+            $error = 'Name is required';
+        } elseif (strlen($name) > 255) {
+            $error = 'Name must not exceed 255 characters';
+        } else {
+            $stmt = $db->prepare("UPDATE users SET name = ? WHERE id = ?");
+            $stmt->bind_param('si', $name, $_SESSION['user']['id']);
+            
+            if ($stmt->execute()) {
+                $_SESSION['user']['name'] = $name;
+                $success = 'Profile updated successfully';
+            } else {
+                $error = 'Failed to update profile';
+            }
+            $stmt->close();
+        }
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'change_email') {
         $newEmail = trim($_POST['new_email'] ?? '');
         
         if (empty($newEmail) || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
@@ -203,6 +222,7 @@ ob_start();
                 <h2 class="card-title text-xl mb-4">Edit Profile</h2>
                 
                 <form method="POST" class="space-y-4">
+                    <input type="hidden" name="action" value="edit_profile">
                     <div class="form-control">
                         <label class="label">
                             <span class="label-text">Avatar</span>
