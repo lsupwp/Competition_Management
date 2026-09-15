@@ -207,7 +207,7 @@ Team Competition Management System:
 
 - **Google OAuth flow:**
   1. User clicks "Login with Google" or "Register with Google"
-  2. Redirect to `/auth/google` → generates Google auth URL
+  2. Redirect to `/auth/google?source=login|register` → stores source in session → generates Google auth URL
   3. User authenticates on Google
   4. Google redirects to `/auth/google/callback` with code
   5. Exchange code for user info via `GoogleAuthService`
@@ -217,10 +217,161 @@ Team Competition Management System:
      - If user doesn't exist → create new user (auto-verified)
   7. Store in session and redirect to home
 
+- **Google OAuth Behavior by Source:**
+  - **Login page** (`source=login`):
+    - User not found → redirect to login with modal asking "Create account?"
+    - User found with google_id → login directly
+    - User found with same email (no google_id) → link account automatically
+  - **Register page** (`source=register`):
+    - User not found → auto-create account (no modal)
+    - User found with google_id → login directly
+    - User found with same email (no google_id) → link account automatically
+
 - **Google OAuth Config (.env):**
   - `GOOGLE_CLIENT_ID` - Google OAuth client ID
   - `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
   - `GOOGLE_REDIRECT_URI` - Callback URL (must match Google Console)
+
+## Account Management System
+
+### Settings Page (`/settings`)
+- **Route:** `web/views/settings.php`
+- **Auth required:** Redirects to login if not authenticated
+- **POST-Redirect-GET pattern:** All POST actions redirect to prevent form resubmission on F5
+
+### Settings Page Sections
+
+#### 1. Edit Profile
+- **Action:** `edit_profile`
+- **Fields:** Name, Avatar upload
+- **Avatar upload:**
+  - Stored in `web/uploads/avatars/`
+  - Filename: `avatar_{user_id}_{timestamp}.{ext}`
+  - Allowed types: JPG, PNG, GIF, WebP
+  - Max size: 2MB
+  - Old avatar auto-deleted on upload
+  - Updates `users.avatar_url` in database
+
+#### 2. Change Email
+- **Action:** `change_email`
+- **Verification required before change:**
+  - **Password only** → verify with password
+  - **Google only** → verify with Google OAuth (`source=settings_email`)
+  - **Both password and Google** → show modal to choose verification method
+- **After verification:**
+  - Update email in database
+  - Set `email_verified_at = NULL`
+  - Generate verification token (expires 24h)
+  - Send verification email to new address
+  - Update session with new email
+- **Google verification flow:**
+  - Store `pending_email_change` in session with `expected_google_id`
+  - Redirect to `/auth/google?source=settings_email`
+  - Callback validates Google account matches linked account
+  - If matches → proceed with email change
+  - If not matches → error "Invalid Google account. Please use your linked Google account."
+
+#### 3. Change Password / Add Password
+- **Action:** `change_password` or `add_password`
+- **Conditional display:**
+  - **Has password** → Show "Change Password" form (current + new + confirm)
+  - **No password** → Show "Add Password" form (new + confirm only)
+- **Validation:**
+  - Password min 8 characters
+  - New password must match confirmation
+  - Current password must be correct (for change)
+
+#### 4. Google Account
+- **Actions:** `unlink_google` or link via `/auth/google?source=settings_link`
+- **Conditional display:**
+  - **Has Google** → Show "Unlink Google Account" button (only if has password)
+  - **No Google** → Show "Connect Google Account" button
+- **Unlink restriction:**
+  - Cannot unlink if no password set (prevents account lockout)
+  - Shows warning message instead of button
+- **Link flow:**
+  - Redirect to `/auth/google?source=settings_link`
+  - Callback handles three scenarios:
+    - **Google not linked to anyone** → link to current user
+    - **Google already linked to current user** → error "already linked to your account"
+    - **Google already linked to another user** → error "already linked to another user"
+    - **Google email matches current user** → link to current user
+    - **Google email matches another user** → error "email already associated with another user"
+
+### Session Management Patterns
+
+#### Flash Messages (POST-Redirect-GET)
+```php
+// Store flash message before redirect
+$_SESSION['settings_flash'] = ['success' => 'Message'] or ['error' => 'Message'];
+header('Location: /settings');
+exit;
+
+// Retrieve flash message on page load
+if (isset($_SESSION['settings_flash'])) {
+    $flash = $_SESSION['settings_flash'];
+    unset($_SESSION['settings_flash']);
+    if (isset($flash['error'])) $error = $flash['error'];
+    if (isset($flash['success'])) $success = $flash['success'];
+}
+```
+
+#### Google OAuth Source Tracking
+```php
+// Store source before Google redirect
+$_SESSION['google_auth_source'] = 'login|register|settings_email|settings_link';
+
+// Retrieve source in callback
+$source = $_SESSION['google_auth_source'] ?? 'login';
+
+// Handle different sources in callback
+if ($source === 'settings_link') {
+    // Link Google account to current user
+} elseif ($source === 'settings_email') {
+    // Verify email change with Google
+} elseif ($source === 'register') {
+    // Auto-create account if not found
+} else {
+    // Default login flow
+}
+```
+
+#### Pending Operations
+```php
+// Store pending email change
+$_SESSION['pending_email_change'] = [
+    'new_email' => 'new@example.com',
+    'expected_google_id' => '123456789' // for verification
+];
+
+// Store pending Google link (from AuthController)
+$_SESSION['pending_google_link'] = [
+    'google_id' => '123456789',
+    'email' => 'user@example.com',
+    'name' => 'John Doe',
+    'avatar_url' => 'https://...',
+    'existing_user_id' => 1
+];
+```
+
+### Important Implementation Notes
+
+1. **Session write timing:** Always call `session_write_close()` AFTER all session modifications, before `header('Location: ...')` to ensure data persists.
+
+2. **Original user ID:** When handling Google OAuth callback for settings operations, save `$originalUserId = $_SESSION['user']['id']` BEFORE calling `handleGoogleCallback()` because it may overwrite `$_SESSION['user']`.
+
+3. **Email verification:** When changing email, always:
+   - Set `email_verified_at = NULL`
+   - Generate new verification token
+   - Send verification email
+   - User must verify new email before it's fully activated
+
+4. **Google account validation:** When verifying email change with Google:
+   - Store `expected_google_id` in session
+   - In callback, validate `google_id` matches (not email)
+   - Prevents using different Google account for verification
+
+5. **File uploads:** Avatar uploads use `move_uploaded_file()` and store relative path `/uploads/avatars/filename.jpg` in database.
 
 - **Navbar:**
   - Show profile dropdown when user is logged in
