@@ -16,7 +16,7 @@ if (!isset($_SESSION['user'])) {
 }
 
 $db = \App\Services\Database::getInstance();
-$stmt = $db->prepare("SELECT google_id, password_hash FROM users WHERE id = ? AND deleted_at IS NULL");
+$stmt = $db->prepare("SELECT google_id, password_hash, email FROM users WHERE id = ? AND deleted_at IS NULL");
 $stmt->bind_param('i', $_SESSION['user']['id']);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -25,6 +25,7 @@ $stmt->close();
 
 $hasGoogle = !empty($userData['google_id']);
 $hasPassword = !empty($userData['password_hash']);
+$currentGoogleEmail = $userData['email'];
 
 $error = '';
 $success = '';
@@ -70,7 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $error = 'Invalid password';
                     }
                 } elseif ($hasGoogle) {
-                    $_SESSION['pending_email_change'] = ['new_email' => $newEmail];
+                    $_SESSION['pending_email_change'] = [
+                        'new_email' => $newEmail,
+                        'expected_google_id' => $userData['google_id']
+                    ];
                     header('Location: /auth/google?source=settings_email');
                     exit;
                 }
@@ -134,6 +138,25 @@ ob_start();
 <div class="container mx-auto px-4 py-8 max-w-4xl">
     <h1 class="text-3xl font-bold mb-8">Account Settings</h1>
 
+    <?php if (isset($_SESSION['flash_error'])): ?>
+    <div class="alert alert-error mb-6">
+        <span><?= htmlspecialchars($_SESSION['flash_error']) ?></span>
+    </div>
+    <?php unset($_SESSION['flash_error']); ?>
+    <?php endif; ?>
+
+    <?php if ($success): ?>
+    <div class="alert alert-success mb-6">
+        <span><?= htmlspecialchars($success) ?></span>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($error): ?>
+    <div class="alert alert-error mb-6">
+        <span><?= htmlspecialchars($error) ?></span>
+    </div>
+    <?php endif; ?>
+
     <div class="space-y-6">
         <!-- Edit Profile Section -->
         <div class="card bg-base-100 shadow-xl">
@@ -191,6 +214,7 @@ ob_start();
                     $inputLabel = 'New Email';
                     $inputType = 'email';
                     $inputPlaceholder = 'new@email.com';
+                    $inputValue = $_SESSION['user']['email'] ?? '';
                     $inputRequired = true;
                     include __DIR__ . '/../templates/components/input.php';
                     ?>
