@@ -51,6 +51,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->close();
         }
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'upload_avatar') {
+        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $maxSize = 2 * 1024 * 1024; // 2MB
+            
+            $fileType = $_FILES['avatar']['type'];
+            $fileSize = $_FILES['avatar']['size'];
+            
+            if (!in_array($fileType, $allowedTypes)) {
+                $error = 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.';
+            } elseif ($fileSize > $maxSize) {
+                $error = 'File size must be less than 2MB.';
+            } else {
+                $extension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
+                $filename = 'avatar_' . $_SESSION['user']['id'] . '_' . time() . '.' . $extension;
+                $uploadPath = __DIR__ . '/../uploads/avatars/' . $filename;
+                
+                if (move_uploaded_file($_FILES['avatar']['tmp_name'], $uploadPath)) {
+                    $avatarUrl = '/uploads/avatars/' . $filename;
+                    
+                    // Delete old avatar if exists
+                    if (!empty($_SESSION['user']['avatar_url'])) {
+                        $oldAvatarPath = __DIR__ . '/..' . $_SESSION['user']['avatar_url'];
+                        if (file_exists($oldAvatarPath)) {
+                            unlink($oldAvatarPath);
+                        }
+                    }
+                    
+                    $stmt = $db->prepare("UPDATE users SET avatar_url = ? WHERE id = ?");
+                    $stmt->bind_param('si', $avatarUrl, $_SESSION['user']['id']);
+                    
+                    if ($stmt->execute()) {
+                        $_SESSION['user']['avatar_url'] = $avatarUrl;
+                        $success = 'Avatar updated successfully';
+                    } else {
+                        $error = 'Failed to update avatar';
+                    }
+                    $stmt->close();
+                } else {
+                    $error = 'Failed to upload file.';
+                }
+            }
+        } else {
+            $error = 'No file uploaded or upload error occurred.';
+        }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'change_email') {
         $newEmail = trim($_POST['new_email'] ?? '');
         
@@ -221,8 +266,8 @@ ob_start();
             <div class="card-body">
                 <h2 class="card-title text-xl mb-4">Edit Profile</h2>
                 
-                <form method="POST" class="space-y-4">
-                    <input type="hidden" name="action" value="edit_profile">
+                <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                    <input type="hidden" name="action" value="upload_avatar">
                     <div class="form-control">
                         <label class="label">
                             <span class="label-text">Avatar</span>
@@ -239,9 +284,19 @@ ob_start();
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-outline btn-sm">Change Avatar</button>
+                            <div class="flex flex-col gap-2">
+                                <input type="file" name="avatar" id="avatarInput" class="file-input file-input-bordered file-input-sm w-full max-w-xs" accept="image/jpeg,image/png,image/gif,image/webp" />
+                                <button type="submit" class="btn btn-outline btn-sm">Upload Avatar</button>
+                            </div>
                         </div>
+                        <label class="label">
+                            <span class="label-text-alt">Max file size: 2MB. Formats: JPG, PNG, GIF, WebP</span>
+                        </label>
                     </div>
+                </form>
+
+                <form method="POST" class="space-y-4">
+                    <input type="hidden" name="action" value="edit_profile">
 
                     <?php
                     $inputName = 'name';
