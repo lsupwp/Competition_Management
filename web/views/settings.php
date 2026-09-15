@@ -108,6 +108,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         echo json_encode(['success' => false, 'error' => 'Invalid password']);
         exit;
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'add_password') {
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+        
+        if (empty($newPassword)) {
+            $error = 'Password is required';
+        } elseif (strlen($newPassword) < 8) {
+            $error = 'Password must be at least 8 characters';
+        } elseif ($newPassword !== $confirmPassword) {
+            $error = 'Passwords do not match';
+        } else {
+            $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+            
+            $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+            $stmt->bind_param('si', $passwordHash, $_SESSION['user']['id']);
+            
+            if ($stmt->execute()) {
+                $success = 'Password added successfully';
+                $hasPassword = true;
+            } else {
+                $error = 'Failed to add password';
+            }
+            $stmt->close();
+        }
     }
 }
 
@@ -292,6 +316,8 @@ ob_start();
                     <p class="text-sm opacity-70 mb-4">Set a password to enable email login</p>
                     
                     <form method="POST" class="space-y-4">
+                        <input type="hidden" name="action" value="add_password">
+                        
                         <?php
                         $inputName = 'new_password';
                         $inputLabel = 'Password';
