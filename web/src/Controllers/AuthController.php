@@ -356,7 +356,8 @@ class AuthController
 
             return [
                 'success' => true,
-                'redirect' => '/'
+                'redirect' => '/',
+                'user_id' => $user['id'],
             ];
         }
 
@@ -375,7 +376,8 @@ class AuthController
             return [
                 'success' => false,
                 'user_not_found' => true,
-                'redirect' => '/auth/login'
+                'redirect' => '/auth/login',
+                'user_info' => $userInfo,
             ];
         }
 
