@@ -18,7 +18,6 @@ $result = $authController->handleGoogleCallback($_GET['code']);
 
 if ($result['success']) {
     $source = $_SESSION['google_auth_source'] ?? 'login';
-    session_write_close();
     
     if ($source === 'settings_email') {
         $pendingData = $_SESSION['pending_email_change'] ?? null;
@@ -32,18 +31,22 @@ if ($result['success']) {
             $stmt->close();
             
             if ($currentUser['google_id'] === $pendingData['expected_google_id']) {
+                session_write_close();
                 header('Location: /settings?email_changed=1');
             } else {
                 unset($_SESSION['pending_email_change']);
                 $_SESSION['flash_error'] = 'Invalid Google account. Please use your linked Google account.';
+                session_write_close();
                 header('Location: /settings');
             }
         } else {
             unset($_SESSION['pending_email_change']);
             $_SESSION['flash_error'] = 'Invalid request.';
+            session_write_close();
             header('Location: /settings');
         }
     } else {
+        session_write_close();
         header('Location: ' . $result['redirect']);
     }
 } elseif (isset($result['user_not_found']) && $result['user_not_found']) {
@@ -70,13 +73,14 @@ if ($result['success']) {
     }
 } elseif (isset($result['requires_linking']) && $result['requires_linking']) {
     $source = $_SESSION['google_auth_source'] ?? 'login';
-    session_write_close();
     
     if ($source === 'settings_email') {
         unset($_SESSION['pending_email_change']);
         $_SESSION['flash_error'] = 'Invalid Google account. Please use your linked Google account.';
+        session_write_close();
         header('Location: /settings');
     } else {
+        session_write_close();
         header('Location: /auth/link-account');
     }
 } else {
