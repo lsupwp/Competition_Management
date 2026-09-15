@@ -132,6 +132,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt->close();
         }
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'unlink_google') {
+        if (!$hasPassword) {
+            $error = 'Cannot unlink Google account. Please add a password first.';
+        } else {
+            $stmt = $db->prepare("UPDATE users SET google_id = NULL WHERE id = ?");
+            $stmt->bind_param('i', $_SESSION['user']['id']);
+            
+            if ($stmt->execute()) {
+                $success = 'Google account unlinked successfully';
+                $hasGoogle = false;
+            } else {
+                $error = 'Failed to unlink Google account';
+            }
+            $stmt->close();
+        }
     }
 }
 
@@ -360,10 +375,14 @@ ob_start();
                         <?php endif; ?>
                     </div>
                     <?php if ($hasGoogle): ?>
-                        <form method="POST" class="inline">
-                            <input type="hidden" name="action" value="unlink_google">
-                            <button type="submit" class="btn btn-error btn-outline">Unlink Google Account</button>
-                        </form>
+                        <?php if ($hasPassword): ?>
+                            <form method="POST" class="inline">
+                                <input type="hidden" name="action" value="unlink_google">
+                                <button type="submit" class="btn btn-error btn-outline">Unlink Google Account</button>
+                            </form>
+                        <?php else: ?>
+                            <p class="text-sm text-warning">Add a password first to unlink Google account</p>
+                        <?php endif; ?>
                     <?php else: ?>
                         <a href="/auth/google" class="btn btn-outline gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 48 48">
