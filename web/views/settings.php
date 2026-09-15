@@ -31,38 +31,47 @@ $error = '';
 $success = '';
 $showEmailVerifyModal = false;
 
+if (isset($_SESSION['settings_flash'])) {
+    $flash = $_SESSION['settings_flash'];
+    unset($_SESSION['settings_flash']);
+    if (isset($flash['error'])) $error = $flash['error'];
+    if (isset($flash['success'])) $success = $flash['success'];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $flashData = [];
+
     if (isset($_POST['action']) && $_POST['action'] === 'edit_profile') {
         $name = trim($_POST['name'] ?? '');
         
         if (empty($name)) {
-            $error = 'Name is required';
+            $flashData['error'] = 'Name is required';
         } elseif (strlen($name) > 255) {
-            $error = 'Name must not exceed 255 characters';
+            $flashData['error'] = 'Name must not exceed 255 characters';
         } else {
             $stmt = $db->prepare("UPDATE users SET name = ? WHERE id = ?");
             $stmt->bind_param('si', $name, $_SESSION['user']['id']);
             
             if ($stmt->execute()) {
                 $_SESSION['user']['name'] = $name;
-                $success = 'Profile updated successfully';
+                $flashData['success'] = 'Profile updated successfully';
             } else {
-                $error = 'Failed to update profile';
+                $flashData['error'] = 'Failed to update profile';
             }
             $stmt->close();
         }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'upload_avatar') {
         if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
             $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $maxSize = 2 * 1024 * 1024; // 2MB
+            $maxSize = 2 * 1024 * 1024;
             
             $fileType = $_FILES['avatar']['type'];
             $fileSize = $_FILES['avatar']['size'];
             
             if (!in_array($fileType, $allowedTypes)) {
-                $error = 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.';
+                $flashData['error'] = 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.';
             } elseif ($fileSize > $maxSize) {
-                $error = 'File size must be less than 2MB.';
+                $flashData['error'] = 'File size must be less than 2MB.';
             } else {
                 $extension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
                 $filename = 'avatar_' . $_SESSION['user']['id'] . '_' . time() . '.' . $extension;
@@ -71,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (move_uploaded_file($_FILES['avatar']['tmp_name'], $uploadPath)) {
                     $avatarUrl = '/uploads/avatars/' . $filename;
                     
-                    // Delete old avatar if exists
                     if (!empty($_SESSION['user']['avatar_url'])) {
                         $oldAvatarPath = __DIR__ . '/..' . $_SESSION['user']['avatar_url'];
                         if (file_exists($oldAvatarPath)) {
@@ -84,23 +92,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     if ($stmt->execute()) {
                         $_SESSION['user']['avatar_url'] = $avatarUrl;
-                        $success = 'Avatar updated successfully';
+                        $flashData['success'] = 'Avatar updated successfully';
                     } else {
-                        $error = 'Failed to update avatar';
+                        $flashData['error'] = 'Failed to update avatar';
                     }
                     $stmt->close();
                 } else {
-                    $error = 'Failed to upload file.';
+                    $flashData['error'] = 'Failed to upload file.';
                 }
             }
         } else {
-            $error = 'No file uploaded or upload error occurred.';
+            $flashData['error'] = 'No file uploaded or upload error occurred.';
         }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'change_email') {
         $newEmail = trim($_POST['new_email'] ?? '');
         
         if (empty($newEmail) || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
-            $error = 'Invalid email address';
+            $flashData['error'] = 'Invalid email address';
         } else {
             $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND deleted_at IS NULL");
             $stmt->bind_param('s', $newEmail);
@@ -108,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = $stmt->get_result();
             
             if ($result->num_rows > 0) {
-                $error = 'Email already in use';
+                $flashData['error'] = 'Email already in use';
             } else {
                 $stmt->close();
                 
@@ -130,9 +138,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $emailService->sendVerificationEmail($newEmail, $_SESSION['user']['name'], $token);
                         
                         $_SESSION['user']['email'] = $newEmail;
-                        $success = 'Email updated. Please check your inbox to verify your new email address.';
+                        $flashData['success'] = 'Email updated. Please check your inbox to verify your new email address.';
                     } else {
-                        $error = 'Invalid password';
+                        $flashData['error'] = 'Invalid password';
                     }
                 } elseif ($hasGoogle) {
                     $_SESSION['pending_email_change'] = [
@@ -144,44 +152,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-    } elseif (isset($_POST['action']) && $_POST['action'] === 'verify_email_with_password') {
-        $password = $_POST['password'] ?? '';
-        
-        if (password_verify($password, $userData['password_hash'])) {
-            $pendingData = $_SESSION['pending_email_change'] ?? null;
-            if ($pendingData) {
-                $newEmail = $pendingData['new_email'];
-                $token = bin2hex(random_bytes(32));
-                $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
-                
-                $stmt = $db->prepare("UPDATE users SET email = ?, email_verified_at = NULL, verification_token = ?, verification_token_expires_at = ? WHERE id = ?");
-                $stmt->bind_param('sssi', $newEmail, $token, $expiresAt, $_SESSION['user']['id']);
-                $stmt->execute();
-                $stmt->close();
-                
-                $emailService = new \App\Services\EmailService();
-                $emailService->sendVerificationEmail($newEmail, $_SESSION['user']['name'], $token);
-                
-                $_SESSION['user']['email'] = $newEmail;
-                unset($_SESSION['pending_email_change']);
-                
-                echo json_encode(['success' => true, 'message' => 'Email updated. Please check your inbox to verify your new email address.']);
-                exit;
-            }
-        }
-        
-        echo json_encode(['success' => false, 'error' => 'Invalid password']);
-        exit;
     } elseif (isset($_POST['action']) && $_POST['action'] === 'add_password') {
         $newPassword = $_POST['new_password'] ?? '';
         $confirmPassword = $_POST['confirm_password'] ?? '';
         
         if (empty($newPassword)) {
-            $error = 'Password is required';
+            $flashData['error'] = 'Password is required';
         } elseif (strlen($newPassword) < 8) {
-            $error = 'Password must be at least 8 characters';
+            $flashData['error'] = 'Password must be at least 8 characters';
         } elseif ($newPassword !== $confirmPassword) {
-            $error = 'Passwords do not match';
+            $flashData['error'] = 'Passwords do not match';
         } else {
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
             
@@ -189,28 +169,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('si', $passwordHash, $_SESSION['user']['id']);
             
             if ($stmt->execute()) {
-                $success = 'Password added successfully';
+                $flashData['success'] = 'Password added successfully';
                 $hasPassword = true;
             } else {
-                $error = 'Failed to add password';
+                $flashData['error'] = 'Failed to add password';
             }
             $stmt->close();
         }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'unlink_google') {
         if (!$hasPassword) {
-            $error = 'Cannot unlink Google account. Please add a password first.';
+            $flashData['error'] = 'Cannot unlink Google account. Please add a password first.';
         } else {
             $stmt = $db->prepare("UPDATE users SET google_id = NULL WHERE id = ?");
             $stmt->bind_param('i', $_SESSION['user']['id']);
             
             if ($stmt->execute()) {
-                $success = 'Google account unlinked successfully';
+                $flashData['success'] = 'Google account unlinked successfully';
                 $hasGoogle = false;
             } else {
-                $error = 'Failed to unlink Google account';
+                $flashData['error'] = 'Failed to unlink Google account';
             }
             $stmt->close();
         }
+    }
+
+    if (!$showEmailVerifyModal) {
+        $_SESSION['settings_flash'] = $flashData;
+        header('Location: /settings');
+        exit;
     }
 }
 
