@@ -1,6 +1,9 @@
 <?php
 // Main layout template
 // Usage: include __DIR__ . '/../templates/layout.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 ?>
 <!DOCTYPE html>
 <html lang="th" data-theme="<?= $theme ?? 'light' ?>">

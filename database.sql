@@ -10,8 +10,11 @@ CREATE TABLE IF NOT EXISTS users (
     google_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
     avatar_url VARCHAR(500),
     email_verified_at TIMESTAMP NULL,
+    verification_token VARCHAR(255) NULL,
+    verification_token_expires_at TIMESTAMP NULL,
     last_login_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -19,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
     
     INDEX idx_email (email),
     INDEX idx_google_id (google_id),
+    INDEX idx_verification_token (verification_token),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
