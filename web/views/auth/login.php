@@ -16,13 +16,11 @@ $pendingGoogleUser = null;
 
 session_start();
 
-// Check for flash messages from Google callback
 if (isset($_SESSION['flash_error'])) {
     $error = $_SESSION['flash_error'];
     unset($_SESSION['flash_error']);
 }
 
-// Check if coming from Google OAuth with no account
 if (isset($_GET['google_signup']) && $_GET['google_signup'] === '1') {
     if (isset($_SESSION['pending_google_user'])) {
         $showGoogleSignupModal = true;
@@ -30,13 +28,10 @@ if (isset($_GET['google_signup']) && $_GET['google_signup'] === '1') {
     }
 }
 
-// Handle AJAX request for creating account from Google
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create_google_account') {
     header('Content-Type: application/json');
-    
     $authController = new \App\Controllers\AuthController();
     $result = $authController->createAccountFromGoogle();
-    
     echo json_encode($result);
     exit;
 }
@@ -159,7 +154,6 @@ document.querySelectorAll('.toggle-password').forEach(button => {
 </script>
 
 <?php if ($showGoogleSignupModal && $pendingGoogleUser): ?>
-<!-- Google Signup Modal -->
 <dialog id="googleSignupModal" class="modal">
     <div class="modal-box">
         <h3 class="font-bold text-lg">Account Not Found</h3>
@@ -193,23 +187,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const createBtnText = document.getElementById('createBtnText');
     const createBtnLoading = document.getElementById('createBtnLoading');
     
-    // Show modal on page load
     if (modal) {
         modal.showModal();
     }
     
-    // Handle cancel
     if (cancelBtn) {
         cancelBtn.addEventListener('click', function() {
-            // Clear session by reloading without parameter
             window.location.href = '/auth/login';
         });
     }
     
-    // Handle confirm - create account
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async function() {
-            // Show loading
             confirmBtn.disabled = true;
             createBtnText.classList.add('hidden');
             createBtnLoading.classList.remove('hidden');
