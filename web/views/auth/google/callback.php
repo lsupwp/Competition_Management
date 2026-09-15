@@ -17,8 +17,14 @@ $authController = new AuthController();
 $result = $authController->handleGoogleCallback($_GET['code']);
 
 if ($result['success']) {
+    $source = $_SESSION['google_auth_source'] ?? 'login';
     session_write_close();
-    header('Location: ' . $result['redirect']);
+    
+    if ($source === 'settings_email') {
+        header('Location: /settings?email_changed=1');
+    } else {
+        header('Location: ' . $result['redirect']);
+    }
 } elseif (isset($result['user_not_found']) && $result['user_not_found']) {
     $source = $_SESSION['google_auth_source'] ?? 'login';
     unset($_SESSION['google_auth_source']);
