@@ -18,7 +18,7 @@
 - Custom tags สำหรับงาน (สนใจ, ลงแล้ว, รอ, ฯลฯ)
 - Dynamic event dates (วันแข่ง, วันสิ้นสุดลงทะเบียน, วันประชุม)
 - ควบคุมการมองเห็นงาน (public/private)
-- Google login authentication
+- Email/password authentication
 - Soft delete ทุก table
 
 ## Installation
@@ -97,10 +97,11 @@ File-based routing - filename = URL path:
 
 ## Database Schema
 
-- **users** - User accounts (Google login)
+- **users** - User accounts (email/password login)
 - **teams** - Team information
 - **team_members** - Team membership with roles
 - **team_invitations** - Invite tokens
+- **events** - Event/competition info
 - **events** - Event/competition info
 - **event_dates** - Dynamic date ranges per event
 - **event_tags** - Custom tags with colors

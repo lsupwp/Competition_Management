@@ -14,27 +14,13 @@
   - "Invalid email or password" for all failures (security)
   - No-cache headers on auth pages
   - Password visibility toggle (eye icon)
-  
-- **Google OAuth Login**
-  - Login with Google button
-  - Handle 3 scenarios:
-    1. User exists with google_id → Login
-    2. User exists but not linked (UNVERIFIED) → Overwrite with Google data
-    3. User exists but not linked (VERIFIED) → Redirect to link-account page
-    4. User not found → Show modal to create account
-  
-- **Account Linking**
-  - `/auth/link-account` page for verified accounts
-  - Password verification before linking
-  - `linkAccountWithPassword()` method
 
 ### UI/UX
 - Tailwind CSS v4 + DaisyUI v5
 - Light/Dark theme toggle
 - Responsive navbar with profile dropdown
-- Profile avatar (first letter or Google avatar)
+- Profile avatar (first letter)
 - Dropdown menu: Settings, Manage Team, Join Team, Logout
-- Modal for Google signup confirmation
 - Alert boxes for success/error messages
 - Loading animations on forms
 
@@ -82,7 +68,6 @@
 - [ ] **Settings Page** (`/settings`) - Not created
   - Update profile (name, avatar)
   - Change password
-  - Link/unlink Google account
   - Email preferences
 
 ### Security
@@ -101,7 +86,7 @@
 - [ ] Manual testing checklist
 
 ## 📝 Current Branch
-`auth` - Authentication system implementation
+`auth` - Authentication system implementation (email/password only)
 
 ## 🔧 Recent Commits
 ```
@@ -146,7 +131,7 @@ e8405d3 Revert modal, fix login error message, add no-cache headers
 ### Auth System
 - `web/src/Controllers/AuthController.php` - All auth logic
 - `web/views/auth/` - Auth pages (login, register, verify, etc.)
-- `web/src/Services/` - Database, Email, CSRF, Google Auth services
+- `web/src/Services/` - Database, Email, CSRF services
 
 ### Configuration
 - `AGENT.md` - Project constraints and rules
@@ -163,7 +148,6 @@ e8405d3 Revert modal, fix login error message, add no-cache headers
 Already configured:
 - Database credentials
 - SMTP settings (for emails)
-- Google OAuth credentials
 - APP_URL
 
 Need to add:
@@ -179,6 +163,5 @@ Need to add:
 - Password hashing: Argon2id
 - CSRF tokens: Session-based, 2h expiry
 - Email verification: 24h expiry
-- Google OAuth: Uses league/oauth2-google (lightweight)
 - Database: mysqli OOP (no PDO)
 - Routing: File-based (filename = URL path)
