@@ -11,68 +11,68 @@ if (!isset($_SESSION['user'])) {
 
 $title = 'Manage Teams - Team Competition';
 
-// Mock data - will be replaced with DB queries
-$mockTeams = [
-    [
-        'id' => 1,
-        'name' => 'Alpha Warriors',
-        'description' => 'Competitive gaming team focused on strategy games',
-        'logo_url' => null,
-        'max_members' => 10,
-        'is_public' => 1,
-        'user_role' => 'owner',
-        'member_count' => 5,
-        'members' => [
-            ['id' => 1, 'name' => 'John Doe', 'email' => 'john@example.com', 'avatar_url' => null, 'role' => 'owner', 'joined_at' => '2024-01-15'],
-            ['id' => 2, 'name' => 'Jane Smith', 'email' => 'jane@example.com', 'avatar_url' => null, 'role' => 'admin', 'joined_at' => '2024-01-16'],
-            ['id' => 3, 'name' => 'Bob Wilson', 'email' => 'bob@example.com', 'avatar_url' => null, 'role' => 'member', 'joined_at' => '2024-01-20'],
-            ['id' => 4, 'name' => 'Alice Brown', 'email' => 'alice@example.com', 'avatar_url' => null, 'role' => 'member', 'joined_at' => '2024-02-01'],
-            ['id' => 5, 'name' => 'Charlie Davis', 'email' => 'charlie@example.com', 'avatar_url' => null, 'role' => 'member', 'joined_at' => '2024-02-10'],
-        ]
-    ],
-    [
-        'id' => 2,
-        'name' => 'Beta Squad',
-        'description' => 'Casual team for fun competitions',
-        'logo_url' => null,
-        'max_members' => 8,
-        'is_public' => 1,
-        'user_role' => 'admin',
-        'member_count' => 3,
-        'members' => [
-            ['id' => 6, 'name' => 'David Miller', 'email' => 'david@example.com', 'avatar_url' => null, 'role' => 'owner', 'joined_at' => '2024-01-10'],
-            ['id' => 1, 'name' => 'John Doe', 'email' => 'john@example.com', 'avatar_url' => null, 'role' => 'admin', 'joined_at' => '2024-01-12'],
-            ['id' => 7, 'name' => 'Eve Johnson', 'email' => 'eve@example.com', 'avatar_url' => null, 'role' => 'member', 'joined_at' => '2024-01-25'],
-        ]
-    ],
-    [
-        'id' => 3,
-        'name' => 'Gamma Force',
-        'description' => 'Elite team for professional tournaments',
-        'logo_url' => null,
-        'max_members' => 5,
-        'is_public' => 0,
-        'user_role' => 'member',
-        'member_count' => 4,
-        'members' => [
-            ['id' => 8, 'name' => 'Frank White', 'email' => 'frank@example.com', 'avatar_url' => null, 'role' => 'owner', 'joined_at' => '2024-01-05'],
-            ['id' => 9, 'name' => 'Grace Lee', 'email' => 'grace@example.com', 'avatar_url' => null, 'role' => 'admin', 'joined_at' => '2024-01-06'],
-            ['id' => 10, 'name' => 'Henry Taylor', 'email' => 'henry@example.com', 'avatar_url' => null, 'role' => 'member', 'joined_at' => '2024-01-08'],
-            ['id' => 1, 'name' => 'John Doe', 'email' => 'john@example.com', 'avatar_url' => null, 'role' => 'member', 'joined_at' => '2024-01-15'],
-        ]
-    ]
-];
+$teamController = new \App\Controllers\TeamController();
+
+// Handle POST actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+    $teamId = (int)($_POST['team_id'] ?? 0);
+    
+    if ($action === 'kick_member') {
+        $targetUserId = (int)($_POST['target_user_id'] ?? 0);
+        $result = $teamController->kickMember($teamId, $_SESSION['user']['id'], $targetUserId);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = $result['message'];
+        } else {
+            $_SESSION['flash_error'] = $result['error'];
+        }
+        
+        header('Location: /team/manage?id=' . $teamId);
+        exit;
+        
+    } elseif ($action === 'leave_team') {
+        $result = $teamController->leaveTeam($teamId, $_SESSION['user']['id']);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = $result['message'];
+            header('Location: /team/manage');
+        } else {
+            $_SESSION['flash_error'] = $result['error'];
+            header('Location: /team/manage?id=' . $teamId);
+        }
+        exit;
+        
+    } elseif ($action === 'change_role') {
+        $targetUserId = (int)($_POST['target_user_id'] ?? 0);
+        $newRole = $_POST['new_role'] ?? '';
+        $result = $teamController->changeMemberRole($teamId, $_SESSION['user']['id'], $targetUserId, $newRole);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = $result['message'];
+        } else {
+            $_SESSION['flash_error'] = $result['error'];
+        }
+        
+        header('Location: /team/manage?id=' . $teamId);
+        exit;
+    }
+}
+
+// Get user's teams
+$teams = $teamController->getTeamsForUser($_SESSION['user']['id']);
 
 // Check if viewing specific team
 $selectedTeamId = isset($_GET['id']) ? (int)$_GET['id'] : null;
 $selectedTeam = null;
+$members = [];
 
 if ($selectedTeamId) {
-    foreach ($mockTeams as $team) {
-        if ($team['id'] === $selectedTeamId) {
-            $selectedTeam = $team;
-            break;
-        }
+    $selectedTeam = $teamController->getTeamById($selectedTeamId, $_SESSION['user']['id']);
+    if ($selectedTeam) {
+        $members = $teamController->getTeamMembers($selectedTeamId);
+        $selectedTeam['member_count'] = count($members);
+        $selectedTeam['members'] = $members;
     }
 }
 
@@ -110,7 +110,7 @@ ob_start();
         <?php unset($_SESSION['flash_error']); ?>
     <?php endif; ?>
 
-    <?php if (empty($mockTeams)): ?>
+    <?php if (empty($teams)): ?>
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body text-center py-16">
                 <h2 class="text-2xl font-bold mb-4">You're not in any teams yet</h2>
@@ -155,12 +155,16 @@ ob_start();
                     <div class="flex items-center gap-4">
                         <div class="avatar">
                             <div class="w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
-                                <?= strtoupper(substr($selectedTeam['name'], 0, 1)) ?>
+                                <?php if (!empty($selectedTeam['logo_url'])): ?>
+                                    <img src="<?= htmlspecialchars($selectedTeam['logo_url']) ?>" alt="<?= htmlspecialchars($selectedTeam['name']) ?>" class="w-full h-full object-cover" />
+                                <?php else: ?>
+                                    <?= strtoupper(substr($selectedTeam['name'], 0, 1)) ?>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <div>
                             <h2 class="card-title text-2xl"><?= htmlspecialchars($selectedTeam['name']) ?></h2>
-                            <p class="text-sm text-base-content/70"><?= htmlspecialchars($selectedTeam['description']) ?></p>
+                            <p class="text-sm text-base-content/70"><?= htmlspecialchars($selectedTeam['description'] ?? '') ?></p>
                             <div class="flex gap-2 mt-2">
                                 <span class="badge badge-outline"><?= $selectedTeam['member_count'] ?>/<?= $selectedTeam['max_members'] ?> members</span>
                                 <?php if ($selectedTeam['is_public']): ?>
@@ -207,7 +211,11 @@ ob_start();
                                         <div class="flex items-center gap-3">
                                             <div class="avatar">
                                                 <div class="w-10 rounded-full bg-base-300 flex items-center justify-center font-bold">
-                                                    <?= strtoupper(substr($member['name'], 0, 1)) ?>
+                                                    <?php if (!empty($member['avatar_url'])): ?>
+                                                        <img src="<?= htmlspecialchars($member['avatar_url']) ?>" alt="<?= htmlspecialchars($member['name']) ?>" />
+                                                    <?php else: ?>
+                                                        <?= strtoupper(substr($member['name'], 0, 1)) ?>
+                                                    <?php endif; ?>
                                                 </div>
                                             </div>
                                             <div>
@@ -218,11 +226,16 @@ ob_start();
                                     </td>
                                     <td>
                                         <?php if ($selectedTeam['user_role'] === 'owner' && $member['id'] !== $_SESSION['user']['id']): ?>
-                                            <select class="select select-bordered select-sm" onchange="changeRole(<?= $selectedTeam['id'] ?>, <?= $member['id'] ?>, this.value)">
-                                                <option value="owner" <?= $member['role'] === 'owner' ? 'selected' : '' ?>>Owner</option>
-                                                <option value="admin" <?= $member['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
-                                                <option value="member" <?= $member['role'] === 'member' ? 'selected' : '' ?>>Member</option>
-                                            </select>
+                                            <form method="POST" style="display:inline;">
+                                                <input type="hidden" name="action" value="change_role">
+                                                <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                                <input type="hidden" name="target_user_id" value="<?= $member['id'] ?>">
+                                                <select name="new_role" class="select select-bordered select-sm" onchange="this.form.submit()">
+                                                    <option value="owner" <?= $member['role'] === 'owner' ? 'selected' : '' ?>>Owner</option>
+                                                    <option value="admin" <?= $member['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
+                                                    <option value="member" <?= $member['role'] === 'member' ? 'selected' : '' ?>>Member</option>
+                                                </select>
+                                            </form>
                                         <?php else: ?>
                                             <span class="badge badge-<?= $member['role'] === 'owner' ? 'primary' : ($member['role'] === 'admin' ? 'secondary' : 'ghost') ?>">
                                                 <?= ucfirst($member['role']) ?>
@@ -235,19 +248,33 @@ ob_start();
                                             <?php if ($selectedTeam['user_role'] === 'owner'): ?>
                                                 <span class="text-sm opacity-50">You (Owner)</span>
                                             <?php else: ?>
-                                                <button class="btn btn-error btn-sm" onclick="leaveTeam(<?= $selectedTeam['id'] ?>)">
-                                                    Leave Team
-                                                </button>
+                                                <form method="POST" style="display:inline;">
+                                                    <input type="hidden" name="action" value="leave_team">
+                                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                                    <button type="submit" class="btn btn-error btn-sm" onclick="return confirm('Are you sure you want to leave this team?')">
+                                                        Leave Team
+                                                    </button>
+                                                </form>
                                             <?php endif; ?>
                                         <?php else: ?>
                                             <?php if ($selectedTeam['user_role'] === 'owner' && $member['role'] !== 'owner'): ?>
-                                                <button class="btn btn-error btn-sm btn-outline" onclick="kickMember(<?= $selectedTeam['id'] ?>, <?= $member['id'] ?>)">
-                                                    Kick
-                                                </button>
+                                                <form method="POST" style="display:inline;">
+                                                    <input type="hidden" name="action" value="kick_member">
+                                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                                    <input type="hidden" name="target_user_id" value="<?= $member['id'] ?>">
+                                                    <button type="submit" class="btn btn-error btn-sm btn-outline" onclick="return confirm('Are you sure you want to kick this member?')">
+                                                        Kick
+                                                    </button>
+                                                </form>
                                             <?php elseif ($selectedTeam['user_role'] === 'admin' && $member['role'] === 'member'): ?>
-                                                <button class="btn btn-error btn-sm btn-outline" onclick="kickMember(<?= $selectedTeam['id'] ?>, <?= $member['id'] ?>)">
-                                                    Kick
-                                                </button>
+                                                <form method="POST" style="display:inline;">
+                                                    <input type="hidden" name="action" value="kick_member">
+                                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                                    <input type="hidden" name="target_user_id" value="<?= $member['id'] ?>">
+                                                    <button type="submit" class="btn btn-error btn-sm btn-outline" onclick="return confirm('Are you sure you want to kick this member?')">
+                                                        Kick
+                                                    </button>
+                                                </form>
                                             <?php else: ?>
                                                 <span class="text-sm opacity-50">-</span>
                                             <?php endif; ?>
@@ -319,18 +346,22 @@ ob_start();
     <?php else: ?>
         <!-- Team List View -->
         <div class="grid gap-4">
-            <?php foreach ($mockTeams as $team): ?>
+            <?php foreach ($teams as $team): ?>
                 <a href="/team/manage?id=<?= $team['id'] ?>" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
                     <div class="card-body">
                         <div class="flex items-center gap-4">
                             <div class="avatar">
                                 <div class="w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
-                                    <?= strtoupper(substr($team['name'], 0, 1)) ?>
+                                    <?php if (!empty($team['logo_url'])): ?>
+                                        <img src="<?= htmlspecialchars($team['logo_url']) ?>" alt="<?= htmlspecialchars($team['name']) ?>" class="w-full h-full object-cover" />
+                                    <?php else: ?>
+                                        <?= strtoupper(substr($team['name'], 0, 1)) ?>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <div class="flex-1">
                                 <h2 class="card-title text-xl"><?= htmlspecialchars($team['name']) ?></h2>
-                                <p class="text-sm text-base-content/70"><?= htmlspecialchars($team['description']) ?></p>
+                                <p class="text-sm text-base-content/70"><?= htmlspecialchars($team['description'] ?? '') ?></p>
                                 <div class="flex gap-2 mt-2">
                                     <span class="badge badge-outline"><?= $team['member_count'] ?>/<?= $team['max_members'] ?> members</span>
                                     <?php if ($team['is_public']): ?>
@@ -368,27 +399,6 @@ function copyInviteLink() {
     setTimeout(() => {
         btn.textContent = originalText;
     }, 2000);
-}
-
-function changeRole(teamId, userId, newRole) {
-    if (confirm(`Change role to ${newRole}?`)) {
-        // TODO: Implement API call
-        alert(`Role change to ${newRole} (mock - not implemented yet)`);
-    }
-}
-
-function kickMember(teamId, userId) {
-    if (confirm('Are you sure you want to kick this member?')) {
-        // TODO: Implement API call
-        alert(`Member kicked (mock - not implemented yet)`);
-    }
-}
-
-function leaveTeam(teamId) {
-    if (confirm('Are you sure you want to leave this team?')) {
-        // TODO: Implement API call
-        alert(`Left team (mock - not implemented yet)`);
-    }
 }
 </script>
 

@@ -11,37 +11,6 @@ if (!isset($_SESSION['user'])) {
 
 $title = 'Team Settings - Team Competition';
 
-// Mock data - will be replaced with DB queries
-$mockTeams = [
-    [
-        'id' => 1,
-        'name' => 'Alpha Warriors',
-        'description' => 'Competitive gaming team focused on strategy games',
-        'logo_url' => null,
-        'max_members' => 10,
-        'is_public' => 1,
-        'user_role' => 'owner',
-    ],
-    [
-        'id' => 2,
-        'name' => 'Beta Squad',
-        'description' => 'Casual team for fun competitions',
-        'logo_url' => null,
-        'max_members' => 8,
-        'is_public' => 1,
-        'user_role' => 'admin',
-    ],
-    [
-        'id' => 3,
-        'name' => 'Gamma Force',
-        'description' => 'Elite team for professional tournaments',
-        'logo_url' => null,
-        'max_members' => 5,
-        'is_public' => 0,
-        'user_role' => 'member',
-    ]
-];
-
 // Get team ID from query param
 $teamId = isset($_GET['id']) ? (int)$_GET['id'] : null;
 
@@ -50,14 +19,53 @@ if (!$teamId) {
     exit;
 }
 
-// Find team and check permissions
-$selectedTeam = null;
-foreach ($mockTeams as $team) {
-    if ($team['id'] === $teamId) {
-        $selectedTeam = $team;
-        break;
+$teamController = new \App\Controllers\TeamController();
+
+// Handle POST - update settings
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+    
+    if ($action === 'update_settings') {
+        $result = $teamController->updateTeamSettings($teamId, $_SESSION['user']['id'], $_POST, $_FILES);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = $result['message'];
+        } else {
+            $_SESSION['flash_error'] = $result['error'];
+        }
+        
+        header('Location: /team/settings?id=' . $teamId);
+        exit;
+        
+    } elseif ($action === 'delete_team') {
+        // Check if user is owner
+        $team = $teamController->getTeamById($teamId, $_SESSION['user']['id']);
+        
+        if (!$team || $team['user_role'] !== 'owner') {
+            $_SESSION['flash_error'] = 'Only team owner can delete the team';
+            header('Location: /team/settings?id=' . $teamId);
+            exit;
+        }
+        
+        // Soft delete team
+        $db = \App\Services\Database::getInstance();
+        $stmt = $db->prepare("UPDATE teams SET deleted_at = NOW() WHERE id = ?");
+        $stmt->bind_param('i', $teamId);
+        
+        if ($stmt->execute()) {
+            $_SESSION['flash_success'] = 'Team deleted successfully';
+            header('Location: /team/manage');
+        } else {
+            $_SESSION['flash_error'] = 'Failed to delete team';
+            header('Location: /team/settings?id=' . $teamId);
+        }
+        $stmt->close();
+        exit;
     }
 }
+
+// Get team data
+$selectedTeam = $teamController->getTeamById($teamId, $_SESSION['user']['id']);
 
 if (!$selectedTeam) {
     header('Location: /team/manage');
@@ -82,13 +90,56 @@ ob_start();
         </h1>
     </div>
 
+    <?php if (isset($_SESSION['flash_success'])): ?>
+        <div class="alert alert-success mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span><?= htmlspecialchars($_SESSION['flash_success']) ?></span>
+        </div>
+        <?php unset($_SESSION['flash_success']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['flash_error'])): ?>
+        <div class="alert alert-error mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span><?= htmlspecialchars($_SESSION['flash_error']) ?></span>
+        </div>
+        <?php unset($_SESSION['flash_error']); ?>
+    <?php endif; ?>
+
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
             <h2 class="card-title text-xl mb-4">Team Settings</h2>
             
-            <form method="POST" class="space-y-6">
+            <form method="POST" enctype="multipart/form-data" class="space-y-6">
                 <input type="hidden" name="action" value="update_settings">
-                <input type="hidden" name="team_id" value="<?= $teamId ?>">
+
+                <!-- Team Logo -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Team Logo</span>
+                    </label>
+                    <div class="flex flex-col items-center gap-4">
+                        <label for="logoInput" class="avatar cursor-pointer hover:opacity-80 transition-opacity">
+                            <div class="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2 bg-primary text-primary-content flex items-center justify-center text-4xl font-bold" id="logoPreview">
+                                <?php if (!empty($selectedTeam['logo_url'])): ?>
+                                    <img src="<?= htmlspecialchars($selectedTeam['logo_url']) ?>" alt="Team logo" class="w-full h-full object-cover" />
+                                <?php else: ?>
+                                    <?= strtoupper(substr($selectedTeam['name'], 0, 1)) ?>
+                                <?php endif; ?>
+                            </div>
+                        </label>
+                        <input type="file" name="logo" id="logoInput" class="hidden" accept="image/jpeg,image/png,image/gif,image/webp" />
+                    </div>
+                    <div class="flex flex-col items-center mt-4">
+                        <label class="label">
+                            <span class="label-text-alt">Click logo to change. Max 2MB. JPG, PNG, GIF, WebP</span>
+                        </label>
+                    </div>
+                </div>
 
                 <!-- Team Name -->
                 <div class="form-control">
@@ -105,7 +156,7 @@ ob_start();
                         <span class="label-text font-semibold">Description</span>
                     </label>
                     <textarea name="description" class="textarea textarea-bordered w-full h-24" 
-                              maxlength="1000"><?= htmlspecialchars($selectedTeam['description']) ?></textarea>
+                              maxlength="1000"><?= htmlspecialchars($selectedTeam['description'] ?? '') ?></textarea>
                 </div>
 
                 <!-- Max Members -->
@@ -168,23 +219,32 @@ ob_start();
                     <div class="font-semibold">Delete Team</div>
                     <div class="text-sm text-base-content/70">Once deleted, this team cannot be recovered</div>
                 </div>
-                <button class="btn btn-error btn-outline" onclick="deleteTeam(<?= $teamId ?>)">
-                    Delete Team
-                </button>
+                <form method="POST">
+                    <input type="hidden" name="action" value="delete_team">
+                    <button type="submit" class="btn btn-error btn-outline" onclick="return confirm('Are you sure you want to delete this team? This action cannot be undone.')">
+                        Delete Team
+                    </button>
+                </form>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function deleteTeam(teamId) {
-    if (confirm('Are you sure you want to delete this team? This action cannot be undone.')) {
-        if (confirm('This will permanently delete the team and all its data. Continue?')) {
-            // TODO: Implement API call
-            alert(`Team deleted (mock - not implemented yet)`);
-            window.location.href = '/team/manage';
+// Logo preview
+const logoInput = document.getElementById('logoInput');
+if (logoInput) {
+    logoInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('logoPreview');
+                preview.innerHTML = `<img src="${e.target.result}" alt="Logo preview" class="w-full h-full object-cover" />`;
+            };
+            reader.readAsDataURL(file);
         }
-    }
+    });
 }
 </script>
 
