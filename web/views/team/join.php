@@ -23,7 +23,8 @@ if ($token) {
     
     // Get invitation details
     $stmt = $db->prepare("
-        SELECT ti.id, ti.team_id, ti.email, ti.role, ti.expires_at, ti.used_at, t.name as team_name
+        SELECT ti.id, ti.team_id, ti.email, ti.role, ti.expires_at, ti.used_at, 
+               t.name as team_name, t.logo_url
         FROM team_invitations ti
         JOIN teams t ON t.id = ti.team_id
         WHERE ti.token = ? AND ti.deleted_at IS NULL AND t.deleted_at IS NULL
@@ -57,6 +58,7 @@ if ($token) {
         } else {
             $teamInfo = [
                 'name' => $invitation['team_name'],
+                'logo_url' => $invitation['logo_url'],
                 'role' => $invitation['role']
             ];
         }
@@ -116,7 +118,11 @@ ob_start();
                 <div class="flex items-center gap-4 mb-6">
                     <div class="avatar">
                         <div class="w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
-                            <?= strtoupper(substr($teamInfo['name'], 0, 1)) ?>
+                            <?php if (!empty($teamInfo['logo_url'])): ?>
+                                <img src="<?= htmlspecialchars($teamInfo['logo_url']) ?>" alt="<?= htmlspecialchars($teamInfo['name']) ?>" class="w-full h-full object-cover" />
+                            <?php else: ?>
+                                <?= strtoupper(substr($teamInfo['name'], 0, 1)) ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div>
