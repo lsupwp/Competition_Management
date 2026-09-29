@@ -43,6 +43,24 @@ if ($action === 'invite_email') {
     }
     
 } elseif ($action === 'generate_token') {
+    // Check if active token already exists
+    $db = \App\Services\Database::getInstance();
+    $stmt = $db->prepare("
+        SELECT id FROM team_invitations
+        WHERE team_id = ? AND deleted_at IS NULL AND used_at IS NULL AND expires_at > NOW() AND email IS NULL
+        LIMIT 1
+    ");
+    $stmt->bind_param('i', $teamId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows > 0) {
+        $_SESSION['flash_error'] = 'An active invite token already exists. Revoke it first to generate a new one.';
+        header('Location: /team/manage?id=' . $teamId);
+        exit;
+    }
+    $stmt->close();
+    
     $result = $teamController->generateInviteToken($teamId, $_SESSION['user']['id']);
     
     if ($result['success']) {

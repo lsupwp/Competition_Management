@@ -308,8 +308,9 @@ ob_start();
                 $stmt = $db->prepare("
                     SELECT id, token, expires_at, created_at, invited_by
                     FROM team_invitations
-                    WHERE team_id = ? AND deleted_at IS NULL AND used_at IS NULL AND expires_at > NOW()
+                    WHERE team_id = ? AND deleted_at IS NULL AND used_at IS NULL AND expires_at > NOW() AND email IS NULL
                     ORDER BY created_at DESC
+                    LIMIT 1
                 ");
                 $stmt->bind_param('i', $selectedTeam['id']);
                 $stmt->execute();
@@ -343,10 +344,31 @@ ob_start();
                             
                             <input type="radio" name="invite_tabs" role="tab" class="tab" aria-label="Generate Token" />
                             <div role="tabpanel" class="tab-content pt-4">
-                                <?php if (!empty($existingTokens)): ?>
-                                    <div class="space-y-3 mb-4">
-                                        <h4 class="font-semibold text-sm">Active Invite Links:</h4>
-                                        <?php foreach ($existingTokens as $tokenData): ?>
+                                <?php if (empty($existingTokens)): ?>
+                                    <!-- No active token, show generate form -->
+                                    <form method="POST" action="/team/invite" class="space-y-4">
+                                        <input type="hidden" name="action" value="generate_token">
+                                        <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                        
+                                        <p class="text-sm text-base-content/70">Generate a shareable invite link. Anyone with this link can join as a member.</p>
+                                        
+                                        <div class="alert alert-info">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>Token expires in 7 days. Can be used multiple times until revoked or expired.</span>
+                                        </div>
+
+                                        <div class="modal-action">
+                                            <button type="button" class="btn" onclick="inviteModal.close()">Cancel</button>
+                                            <button type="submit" class="btn btn-primary">Generate Token</button>
+                                        </div>
+                                    </form>
+                                <?php else: ?>
+                                    <!-- Active token exists, show it -->
+                                    <?php foreach ($existingTokens as $tokenData): ?>
+                                        <div class="space-y-3">
+                                            <h4 class="font-semibold text-sm">Active Invite Link:</h4>
                                             <div class="bg-base-200 p-3 rounded-lg">
                                                 <div class="flex items-center gap-2 mb-2">
                                                     <input type="text" value="http://localhost:8000/team/join?token=<?= htmlspecialchars($tokenData['token']) ?>" 
@@ -370,29 +392,15 @@ ob_start();
                                                     Expires: <?= date('M d, Y H:i', strtotime($tokenData['expires_at'])) ?>
                                                 </div>
                                             </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="divider text-xs">OR GENERATE NEW</div>
+                                            <div class="alert alert-info">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span>Only one active token allowed. Revoke this token to generate a new one.</span>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
                                 <?php endif; ?>
-                                
-                                <form method="POST" action="/team/invite" class="space-y-4">
-                                    <input type="hidden" name="action" value="generate_token">
-                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
-                                    
-                                    <p class="text-sm text-base-content/70">Generate a shareable invite link. Anyone with this link can join as a member. Link can be used multiple times until revoked or expired.</p>
-                                    
-                                    <div class="alert alert-info">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span>Token expires in 7 days. Can be used multiple times until revoked or expired.</span>
-                                    </div>
-
-                                    <div class="modal-action">
-                                        <button type="button" class="btn" onclick="inviteModal.close()">Cancel</button>
-                                        <button type="submit" class="btn btn-primary">Generate Token</button>
-                                    </div>
-                                </form>
                             </div>
                         </div>
                     </div>
