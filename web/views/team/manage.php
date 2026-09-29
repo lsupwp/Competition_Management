@@ -306,7 +306,7 @@ ob_start();
                 // Get existing valid tokens for this team
                 $db = \App\Services\Database::getInstance();
                 $stmt = $db->prepare("
-                    SELECT id, token, expires_at, created_at
+                    SELECT id, token, expires_at, created_at, invited_by
                     FROM team_invitations
                     WHERE team_id = ? AND deleted_at IS NULL AND used_at IS NULL AND expires_at > NOW()
                     ORDER BY created_at DESC
@@ -352,12 +352,19 @@ ob_start();
                                                     <input type="text" value="http://localhost:8000/team/join?token=<?= htmlspecialchars($tokenData['token']) ?>" 
                                                            class="input input-bordered input-sm flex-1 text-xs" readonly id="token_<?= htmlspecialchars($tokenData['token']) ?>" />
                                                     <button class="btn btn-sm btn-primary" onclick="copyToken('token_<?= htmlspecialchars($tokenData['token']) ?>')">Copy</button>
-                                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Revoke this token? It will no longer be usable.')">
-                                                        <input type="hidden" name="action" value="revoke_token">
-                                                        <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
-                                                        <input type="hidden" name="invitation_id" value="<?= $tokenData['id'] ?>">
-                                                        <button type="submit" class="btn btn-sm btn-error btn-outline">Revoke</button>
-                                                    </form>
+                                                    <?php 
+                                                    // Show revoke button if owner OR admin who created this token
+                                                    $canRevoke = ($selectedTeam['user_role'] === 'owner') || 
+                                                                 ($selectedTeam['user_role'] === 'admin' && $tokenData['invited_by'] == $_SESSION['user']['id']);
+                                                    if ($canRevoke): 
+                                                    ?>
+                                                        <form method="POST" style="display:inline;" onsubmit="return confirm('Revoke this token? It will no longer be usable.')">
+                                                            <input type="hidden" name="action" value="revoke_token">
+                                                            <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                                            <input type="hidden" name="invitation_id" value="<?= $tokenData['id'] ?>">
+                                                            <button type="submit" class="btn btn-sm btn-error btn-outline">Revoke</button>
+                                                        </form>
+                                                    <?php endif; ?>
                                                 </div>
                                                 <div class="text-xs opacity-70">
                                                     Expires: <?= date('M d, Y H:i', strtotime($tokenData['expires_at'])) ?>

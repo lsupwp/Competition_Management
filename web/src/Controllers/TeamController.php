@@ -128,8 +128,35 @@ class TeamController
      */
     public function revokeToken(int $teamId, int $userId, int $invitationId): array
     {
-        // Check if user can manage team (owner or admin)
-        if (!$this->canInvite($teamId, $userId)) {
+        // Get invitation details
+        $stmt = $this->db->prepare("
+            SELECT invited_by FROM team_invitations
+            WHERE id = ? AND team_id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ii', $invitationId, $teamId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $invitation = $result->fetch_assoc();
+        $stmt->close();
+
+        if (!$invitation) {
+            return ['success' => false, 'error' => 'Token not found'];
+        }
+
+        // Check permissions
+        $userRole = $this->getUserRoleInTeam($teamId, $userId);
+        
+        if ($userRole === 'owner') {
+            // Owner can revoke any token
+            $canRevoke = true;
+        } elseif ($userRole === 'admin') {
+            // Admin can only revoke own tokens
+            $canRevoke = ($invitation['invited_by'] === $userId);
+        } else {
+            $canRevoke = false;
+        }
+
+        if (!$canRevoke) {
             return ['success' => false, 'error' => 'Permission denied'];
         }
 
