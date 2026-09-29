@@ -6,7 +6,7 @@
         <div class="flex-none gap-2 flex items-center">
             <ul class="menu menu-horizontal px-1">
                 <li><a href="/">Home</a></li>
-                <li><a href="/team">Teams</a></li>
+                <li><a href="/team/manage">Teams</a></li>
                 <li><a href="/event">Events</a></li>
             </ul>
             <label class="swap swap-rotate mr-2">
