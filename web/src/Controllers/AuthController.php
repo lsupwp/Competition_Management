@@ -5,16 +5,19 @@ namespace App\Controllers;
 use App\Services\Database;
 use App\Services\EmailService;
 use App\Services\CsrfService;
+use App\Services\ActivityLogService;
 
 class AuthController
 {
     private $db;
     private $emailService;
+    private $activityLog;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
         $this->emailService = new EmailService();
+        $this->activityLog = new ActivityLogService();
     }
 
     public function register(array $data): array
@@ -62,6 +65,16 @@ class AuthController
                 'error' => 'Unable to send verification email. Please try again.'
             ];
         }
+
+        // Log successful registration
+        $this->activityLog->log(
+            'auth.register',
+            "New user registered: '$name'",
+            $userId,
+            'user',
+            $userId,
+            ['email' => $email, 'name' => $name]
+        );
 
         return [
             'success' => true,
@@ -170,6 +183,16 @@ class AuthController
             'name' => $user['name'],
             'avatar_url' => $user['avatar_url'] ?? null,
         ];
+
+        // Log successful login
+        $this->activityLog->log(
+            'auth.login',
+            "User '{$user['name']}' logged in",
+            $user['id'],
+            'user',
+            $user['id'],
+            ['email' => $user['email']]
+        );
 
         return [
             'success' => true,

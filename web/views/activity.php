@@ -55,6 +55,9 @@ ob_start();
                     </label>
                     <select name="action" class="select select-bordered">
                         <option value="">All Actions</option>
+                        <option value="auth.login" <?= ($filters['action'] ?? '') === 'auth.login' ? 'selected' : '' ?>>User Login</option>
+                        <option value="auth.logout" <?= ($filters['action'] ?? '') === 'auth.logout' ? 'selected' : '' ?>>User Logout</option>
+                        <option value="auth.register" <?= ($filters['action'] ?? '') === 'auth.register' ? 'selected' : '' ?>>User Registration</option>
                         <option value="team.create" <?= ($filters['action'] ?? '') === 'team.create' ? 'selected' : '' ?>>Team Created</option>
                         <option value="team.join" <?= ($filters['action'] ?? '') === 'team.join' ? 'selected' : '' ?>>Team Joined</option>
                         <option value="team.leave" <?= ($filters['action'] ?? '') === 'team.leave' ? 'selected' : '' ?>>Team Left</option>
