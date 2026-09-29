@@ -64,9 +64,9 @@ class TeamController
      */
     public function acceptInvitation(string $token, int $userId): array
     {
-        // Find valid invitation (reusable - no used_at check)
+        // Find valid invitation
         $stmt = $this->db->prepare("
-            SELECT id, team_id, email, role, expires_at
+            SELECT id, team_id, email, role, expires_at, used_at
             FROM team_invitations
             WHERE token = ? AND deleted_at IS NULL
         ");
@@ -85,8 +85,15 @@ class TeamController
             return ['success' => false, 'error' => 'Invitation has expired'];
         }
 
+        // Email invites are single-use
+        $isEmailInvite = !empty($invitation['email']);
+        
+        if ($isEmailInvite && $invitation['used_at'] !== null) {
+            return ['success' => false, 'error' => 'This invitation has already been used'];
+        }
+
         // If email specified, check if current user matches
-        if ($invitation['email'] && $invitation['email'] !== $this->getUserEmail($userId)) {
+        if ($isEmailInvite && $invitation['email'] !== $this->getUserEmail($userId)) {
             return ['success' => false, 'error' => 'This invitation is for a different email address'];
         }
 
@@ -115,6 +122,19 @@ class TeamController
             return ['success' => false, 'error' => 'Failed to join team'];
         }
         $stmt->close();
+
+        // Mark email invites as used (single-use)
+        // Token invites remain reusable (no used_at set)
+        if ($isEmailInvite) {
+            $stmt = $this->db->prepare("
+                UPDATE team_invitations 
+                SET used_at = NOW() 
+                WHERE id = ?
+            ");
+            $stmt->bind_param('i', $invitation['id']);
+            $stmt->execute();
+            $stmt->close();
+        }
 
         return [
             'success' => true,
