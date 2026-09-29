@@ -17,18 +17,20 @@ class IdEncoder
     }
     
     /**
-     * Encode ID to obfuscated string
+     * Encode ID to obfuscated string (fixed length)
      */
     public static function encode(int $id): string
     {
         self::init();
         
-        // Simple XOR encryption + base64
+        // Pad to fixed length (10 digits max)
+        $idStr = str_pad((string)$id, 10, '0', STR_PAD_LEFT);
+        
+        // XOR encryption
         $encrypted = '';
         $keyLength = strlen(self::$key);
-        $idStr = (string)$id;
         
-        for ($i = 0; $i < strlen($idStr); $i++) {
+        for ($i = 0; $i < 10; $i++) {
             $encrypted .= chr(ord($idStr[$i]) ^ ord(self::$key[$i % $keyLength]));
         }
         
@@ -42,7 +44,7 @@ class IdEncoder
     {
         self::init();
         
-        // Add padding back
+        // Add padding back for base64
         $encoded = strtr($encoded, '-_', '+/');
         $padding = strlen($encoded) % 4;
         if ($padding) {
@@ -51,23 +53,24 @@ class IdEncoder
         
         $encrypted = base64_decode($encoded);
         
-        if ($encrypted === false) {
+        if ($encrypted === false || strlen($encrypted) !== 10) {
             return null;
         }
         
-        // Decrypt
+        // XOR decrypt
         $decrypted = '';
         $keyLength = strlen(self::$key);
         
-        for ($i = 0; $i < strlen($encrypted); $i++) {
+        for ($i = 0; $i < 10; $i++) {
             $decrypted .= chr(ord($encrypted[$i]) ^ ord(self::$key[$i % $keyLength]));
         }
         
-        // Validate it's a number
+        // Validate it's all digits
         if (!ctype_digit($decrypted)) {
             return null;
         }
         
-        return (int)$decrypted;
+        // Remove leading zeros and convert to int
+        return (int)ltrim($decrypted, '0') ?: 0;
     }
 }
