@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $action = $_POST['action'] ?? '';
-$teamId = (int)($_POST['team_id'] ?? 0);
+$teamId = \App\Services\IdEncoder::decode($_POST['team_id'] ?? '');
 
 if (!$teamId) {
     $_SESSION['flash_error'] = 'Invalid team ID';
@@ -30,7 +30,7 @@ if ($action === 'invite_email') {
     
     if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $_SESSION['flash_error'] = 'Invalid email address';
-        header('Location: /team/manage?id=' . $teamId);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
         exit;
     }
     
@@ -56,7 +56,7 @@ if ($action === 'invite_email') {
     
     if ($result->num_rows > 0) {
         $_SESSION['flash_error'] = 'An active invite token already exists. Revoke it first to generate a new one.';
-        header('Location: /team/manage?id=' . $teamId);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
         exit;
     }
     $stmt->close();
@@ -67,12 +67,12 @@ if ($action === 'invite_email') {
         $_SESSION['invite_token'] = $result['token'];
         $_SESSION['invite_token_expires'] = $result['expires_at'];
         $_SESSION['flash_success'] = 'Invite token generated successfully';
-        header('Location: /team/manage?id=' . $teamId . '&show_token=1');
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId) . '&show_token=1');
         exit;
     } else {
         $_SESSION['flash_error'] = $result['error'];
     }
 }
 
-header('Location: /team/manage?id=' . $teamId);
+header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
 exit;

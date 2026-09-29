@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $token) {
     
     if ($result['success']) {
         $_SESSION['flash_success'] = 'You have successfully joined the team!';
-        header('Location: /team/manage?id=' . $result['team_id']);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
         exit;
     } else {
         $error = $result['error'];
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token']) && !$token) 
     
     if ($result['success']) {
         $_SESSION['flash_success'] = 'You have successfully joined the team!';
-        header('Location: /team/manage?id=' . $result['team_id']);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
         exit;
     } else {
         $error = $result['error'];

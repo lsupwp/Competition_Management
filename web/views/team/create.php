@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($result['success']) {
         $_SESSION['flash_success'] = 'Team created successfully!';
-        header('Location: /team/manage?id=' . $result['team_id']);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
         exit;
     } else {
         $error = $result['error'];

@@ -1,5 +1,5 @@
 <?php
-// Route: /team/manage or /team/manage?id={team_id}
+// Route: /team/manage or /team/manage?id={encoded_team_id}
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 session_start();
@@ -16,10 +16,21 @@ $teamController = new \App\Controllers\TeamController();
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    $teamId = (int)($_POST['team_id'] ?? 0);
+    $teamId = \App\Services\IdEncoder::decode($_POST['team_id'] ?? '');
+    
+    if (!$teamId) {
+        $_SESSION['flash_error'] = 'Invalid team ID';
+        header('Location: /team/manage');
+        exit;
+    }
     
     if ($action === 'kick_member') {
-        $targetUserId = (int)($_POST['target_user_id'] ?? 0);
+        $targetUserId = \App\Services\IdEncoder::decode($_POST['target_user_id'] ?? '');
+        if (!$targetUserId) {
+            $_SESSION['flash_error'] = 'Invalid user ID';
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
+            exit;
+        }
         $result = $teamController->kickMember($teamId, $_SESSION['user']['id'], $targetUserId);
         
         if ($result['success']) {
@@ -28,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash_error'] = $result['error'];
         }
         
-        header('Location: /team/manage?id=' . $teamId);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
         exit;
         
     } elseif ($action === 'leave_team') {
@@ -39,12 +50,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: /team/manage');
         } else {
             $_SESSION['flash_error'] = $result['error'];
-            header('Location: /team/manage?id=' . $teamId);
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
         }
         exit;
         
     } elseif ($action === 'change_role') {
-        $targetUserId = (int)($_POST['target_user_id'] ?? 0);
+        $targetUserId = \App\Services\IdEncoder::decode($_POST['target_user_id'] ?? '');
+        if (!$targetUserId) {
+            $_SESSION['flash_error'] = 'Invalid user ID';
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
+            exit;
+        }
         $newRole = $_POST['new_role'] ?? '';
         $result = $teamController->changeMemberRole($teamId, $_SESSION['user']['id'], $targetUserId, $newRole);
         
@@ -54,11 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash_error'] = $result['error'];
         }
         
-        header('Location: /team/manage?id=' . $teamId);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
         exit;
         
     } elseif ($action === 'revoke_token') {
-        $invitationId = (int)($_POST['invitation_id'] ?? 0);
+        $invitationId = \App\Services\IdEncoder::decode($_POST['invitation_id'] ?? '');
+        if (!$invitationId) {
+            $_SESSION['flash_error'] = 'Invalid invitation ID';
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
+            exit;
+        }
         $result = $teamController->revokeToken($teamId, $_SESSION['user']['id'], $invitationId);
         
         if ($result['success']) {
@@ -67,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash_error'] = $result['error'];
         }
         
-        header('Location: /team/manage?id=' . $teamId);
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
         exit;
     }
 }
@@ -76,7 +97,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $teams = $teamController->getTeamsForUser($_SESSION['user']['id']);
 
 // Check if viewing specific team
-$selectedTeamId = isset($_GET['id']) ? (int)$_GET['id'] : null;
+$selectedTeamId = null;
+if (isset($_GET['id'])) {
+    $selectedTeamId = \App\Services\IdEncoder::decode($_GET['id']);
+}
 $selectedTeam = null;
 $members = [];
 
@@ -197,7 +221,7 @@ ob_start();
                             </button>
                         <?php endif; ?>
                         <?php if ($selectedTeam['user_role'] === 'owner'): ?>
-                            <a href="/team/settings?id=<?= $selectedTeam['id'] ?>" class="btn btn-outline btn-sm">
+                            <a href="/team/settings?id=<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>" class="btn btn-outline btn-sm">
                                 Settings
                             </a>
                         <?php endif; ?>
@@ -241,8 +265,8 @@ ob_start();
                                         <?php if ($selectedTeam['user_role'] === 'owner' && $member['id'] !== $_SESSION['user']['id']): ?>
                                             <form method="POST" style="display:inline;">
                                                 <input type="hidden" name="action" value="change_role">
-                                                <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
-                                                <input type="hidden" name="target_user_id" value="<?= $member['id'] ?>">
+                                                <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                                <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
                                                 <select name="new_role" class="select select-bordered select-sm" onchange="this.form.submit()">
                                                     <option value="owner" <?= $member['role'] === 'owner' ? 'selected' : '' ?>>Owner</option>
                                                     <option value="admin" <?= $member['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
@@ -263,7 +287,7 @@ ob_start();
                                             <?php else: ?>
                                                 <form method="POST" style="display:inline;">
                                                     <input type="hidden" name="action" value="leave_team">
-                                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                     <button type="submit" class="btn btn-error btn-sm" onclick="return confirm('Are you sure you want to leave this team?')">
                                                         Leave Team
                                                     </button>
@@ -273,8 +297,8 @@ ob_start();
                                             <?php if ($selectedTeam['user_role'] === 'owner' && $member['role'] !== 'owner'): ?>
                                                 <form method="POST" style="display:inline;">
                                                     <input type="hidden" name="action" value="kick_member">
-                                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
-                                                    <input type="hidden" name="target_user_id" value="<?= $member['id'] ?>">
+                                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                                    <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
                                                     <button type="submit" class="btn btn-error btn-sm btn-outline" onclick="return confirm('Are you sure you want to kick this member?')">
                                                         Kick
                                                     </button>
@@ -282,8 +306,8 @@ ob_start();
                                             <?php elseif ($selectedTeam['user_role'] === 'admin' && $member['role'] === 'member'): ?>
                                                 <form method="POST" style="display:inline;">
                                                     <input type="hidden" name="action" value="kick_member">
-                                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
-                                                    <input type="hidden" name="target_user_id" value="<?= $member['id'] ?>">
+                                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                                    <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
                                                     <button type="submit" class="btn btn-error btn-sm btn-outline" onclick="return confirm('Are you sure you want to kick this member?')">
                                                         Kick
                                                     </button>
@@ -326,7 +350,7 @@ ob_start();
                             <div role="tabpanel" class="tab-content pt-4">
                                 <form method="POST" action="/team/invite" class="space-y-4">
                                     <input type="hidden" name="action" value="invite_email">
-                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                     
                                     <div class="form-control w-full">
                                         <label class="label">
@@ -348,7 +372,7 @@ ob_start();
                                     <!-- No active token, show generate form -->
                                     <form method="POST" action="/team/invite" class="space-y-4">
                                         <input type="hidden" name="action" value="generate_token">
-                                        <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                        <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                         
                                         <p class="text-sm text-base-content/70">Generate a shareable invite link. Anyone with this link can join as a member.</p>
                                         
@@ -382,8 +406,8 @@ ob_start();
                                                     ?>
                                                         <form method="POST" style="display:inline;" onsubmit="return confirm('Revoke this token? It will no longer be usable.')">
                                                             <input type="hidden" name="action" value="revoke_token">
-                                                            <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
-                                                            <input type="hidden" name="invitation_id" value="<?= $tokenData['id'] ?>">
+                                                            <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                                            <input type="hidden" name="invitation_id" value="<?= \App\Services\IdEncoder::encode($tokenData['id']) ?>">
                                                             <button type="submit" class="btn btn-sm btn-error btn-outline">Revoke</button>
                                                         </form>
                                                     <?php endif; ?>
@@ -414,7 +438,7 @@ ob_start();
         <!-- Team List View -->
         <div class="grid gap-4">
             <?php foreach ($teams as $team): ?>
-                <a href="/team/manage?id=<?= $team['id'] ?>" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
+                <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($team['id']) ?>" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
                     <div class="card-body">
                         <div class="flex items-center gap-4">
                             <div class="avatar">

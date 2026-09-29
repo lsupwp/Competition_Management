@@ -12,7 +12,10 @@ if (!isset($_SESSION['user'])) {
 $title = 'Team Settings - Team Competition';
 
 // Get team ID from query param
-$teamId = isset($_GET['id']) ? (int)$_GET['id'] : null;
+$teamId = null;
+if (isset($_GET['id'])) {
+    $teamId = \App\Services\IdEncoder::decode($_GET['id']);
+}
 
 if (!$teamId) {
     header('Location: /team/manage');
@@ -34,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['flash_error'] = $result['error'];
         }
         
-        header('Location: /team/settings?id=' . $teamId);
+        header('Location: /team/settings?id=' . \App\Services\IdEncoder::encode($teamId));
         exit;
         
     } elseif ($action === 'delete_team') {
@@ -43,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (!$team || $team['user_role'] !== 'owner') {
             $_SESSION['flash_error'] = 'Only team owner can delete the team';
-            header('Location: /team/settings?id=' . $teamId);
+            header('Location: /team/settings?id=' . \App\Services\IdEncoder::encode($teamId));
             exit;
         }
         
@@ -57,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: /team/manage');
         } else {
             $_SESSION['flash_error'] = 'Failed to delete team';
-            header('Location: /team/settings?id=' . $teamId);
+            header('Location: /team/settings?id=' . \App\Services\IdEncoder::encode($teamId));
         }
         $stmt->close();
         exit;
@@ -75,7 +78,7 @@ if (!$selectedTeam) {
 // Only owner can access settings
 if ($selectedTeam['user_role'] !== 'owner') {
     $_SESSION['flash_error'] = 'You do not have permission to access team settings';
-    header('Location: /team/manage?id=' . $teamId);
+    header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
     exit;
 }
 
@@ -85,7 +88,7 @@ ob_start();
     <div class="mb-8">
         <h1 class="text-3xl font-bold">
             <a href="/team/manage" class="link link-hover">Manage Teams</a> / 
-            <a href="/team/manage?id=<?= $teamId ?>" class="link link-hover"><?= htmlspecialchars($selectedTeam['name']) ?></a> / 
+            <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($teamId) ?>" class="link link-hover"><?= htmlspecialchars($selectedTeam['name']) ?></a> / 
             Settings
         </h1>
     </div>
