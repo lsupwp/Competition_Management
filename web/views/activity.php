@@ -9,6 +9,13 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+// Check if user is admin
+if (!isset($_SESSION['user']['role']) || $_SESSION['user']['role'] !== 'admin') {
+    $_SESSION['flash_error'] = 'You do not have permission to access this page.';
+    header('Location: /');
+    exit;
+}
+
 $title = 'Activity Log - Team Competition';
 
 $activityLog = new \App\Services\ActivityLogService();

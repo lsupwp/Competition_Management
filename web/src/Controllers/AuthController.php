@@ -142,7 +142,7 @@ class AuthController
         $password = $data['password'];
 
         $stmt = $this->db->prepare("
-            SELECT id, email, name, password_hash, email_verified_at 
+            SELECT id, email, name, password_hash, email_verified_at, role 
             FROM users 
             WHERE email = ? AND deleted_at IS NULL
         ");
@@ -182,6 +182,7 @@ class AuthController
             'email' => $user['email'],
             'name' => $user['name'],
             'avatar_url' => $user['avatar_url'] ?? null,
+            'role' => $user['role'] ?? 'user',
         ];
 
         // Log successful login

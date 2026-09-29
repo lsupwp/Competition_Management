@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255),
     avatar_url VARCHAR(500),
+    role ENUM('user', 'admin') DEFAULT 'user',
     email_verified_at TIMESTAMP NULL,
     verification_token VARCHAR(255) NULL,
     verification_token_expires_at TIMESTAMP NULL,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at TIMESTAMP NULL,
     
     INDEX idx_email (email),
+    INDEX idx_role (role),
     INDEX idx_verification_token (verification_token),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

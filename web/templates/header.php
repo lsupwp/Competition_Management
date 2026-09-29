@@ -8,7 +8,9 @@
                 <li><a href="/">Home</a></li>
                 <li><a href="/team/manage">Teams</a></li>
                 <li><a href="/event">Events</a></li>
+                <?php if (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin'): ?>
                 <li><a href="/activity">Activity</a></li>
+                <?php endif; ?>
             </ul>
             <label class="swap swap-rotate mr-2">
                 <input type="checkbox" id="theme-toggle" />
