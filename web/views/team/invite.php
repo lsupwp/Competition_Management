@@ -1,0 +1,60 @@
+<?php
+// Route: /team/invite
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+session_start();
+
+if (!isset($_SESSION['user'])) {
+    header('Location: /auth/login');
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /team/manage');
+    exit;
+}
+
+$action = $_POST['action'] ?? '';
+$teamId = (int)($_POST['team_id'] ?? 0);
+
+if (!$teamId) {
+    $_SESSION['flash_error'] = 'Invalid team ID';
+    header('Location: /team/manage');
+    exit;
+}
+
+$teamController = new \App\Controllers\TeamController();
+
+if ($action === 'invite_email') {
+    $email = trim($_POST['email'] ?? '');
+    
+    if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $_SESSION['flash_error'] = 'Invalid email address';
+        header('Location: /team/manage?id=' . $teamId);
+        exit;
+    }
+    
+    $result = $teamController->generateInviteToken($teamId, $_SESSION['user']['id'], $email);
+    
+    if ($result['success']) {
+        $_SESSION['flash_success'] = "Invitation sent to $email";
+    } else {
+        $_SESSION['flash_error'] = $result['error'];
+    }
+    
+} elseif ($action === 'generate_token') {
+    $result = $teamController->generateInviteToken($teamId, $_SESSION['user']['id']);
+    
+    if ($result['success']) {
+        $_SESSION['invite_token'] = $result['token'];
+        $_SESSION['invite_token_expires'] = $result['expires_at'];
+        $_SESSION['flash_success'] = 'Invite token generated successfully';
+        header('Location: /team/manage?id=' . $teamId . '&show_token=1');
+        exit;
+    } else {
+        $_SESSION['flash_error'] = $result['error'];
+    }
+}
+
+header('Location: /team/manage?id=' . $teamId);
+exit;

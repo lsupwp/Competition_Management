@@ -90,6 +90,26 @@ ob_start();
         <a href="/team/create" class="btn btn-primary">Create New Team</a>
     </div>
 
+    <?php if (isset($_SESSION['flash_success'])): ?>
+        <div class="alert alert-success mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span><?= htmlspecialchars($_SESSION['flash_success']) ?></span>
+        </div>
+        <?php unset($_SESSION['flash_success']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['flash_error'])): ?>
+        <div class="alert alert-error mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span><?= htmlspecialchars($_SESSION['flash_error']) ?></span>
+        </div>
+        <?php unset($_SESSION['flash_error']); ?>
+    <?php endif; ?>
+
     <?php if (empty($mockTeams)): ?>
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body text-center py-16">
@@ -102,6 +122,32 @@ ob_start();
             </div>
         </div>
     <?php elseif ($selectedTeam): ?>
+        <!-- Show generated token -->
+        <?php if (isset($_GET['show_token']) && $_GET['show_token'] === '1' && isset($_SESSION['invite_token'])): ?>
+            <div class="alert alert-success mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div class="flex-1">
+                    <h3 class="font-bold">Invite Token Generated!</h3>
+                    <div class="text-xs mt-2">
+                        <p class="mb-2">Share this link with the person you want to invite:</p>
+                        <div class="flex gap-2">
+                            <input type="text" value="http://localhost:8000/team/join?token=<?= htmlspecialchars($_SESSION['invite_token']) ?>" 
+                                   class="input input-bordered input-sm flex-1" readonly id="inviteLink" />
+                            <button class="btn btn-sm btn-primary" onclick="copyInviteLink()">Copy</button>
+                        </div>
+                        <p class="mt-2 opacity-70">Token: <code class="text-xs"><?= htmlspecialchars($_SESSION['invite_token']) ?></code></p>
+                        <p class="opacity-70">Expires: <?= date('M d, Y H:i', strtotime($_SESSION['invite_token_expires'])) ?></p>
+                    </div>
+                </div>
+            </div>
+            <?php 
+            unset($_SESSION['invite_token']);
+            unset($_SESSION['invite_token_expires']);
+            ?>
+        <?php endif; ?>
+
         <!-- Team Detail View -->
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
@@ -219,34 +265,50 @@ ob_start();
                 <dialog id="inviteModal" class="modal">
                     <div class="modal-box">
                         <h3 class="font-bold text-lg">Invite Member to <?= htmlspecialchars($selectedTeam['name']) ?></h3>
-                        <form method="POST" class="py-4">
-                            <input type="hidden" name="action" value="invite_member">
-                            <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                        
+                        <div role="tablist" class="tabs tabs-bordered mt-4">
+                            <input type="radio" name="invite_tabs" role="tab" class="tab" aria-label="Email Invite" checked />
+                            <div role="tabpanel" class="tab-content pt-4">
+                                <form method="POST" action="/team/invite" class="space-y-4">
+                                    <input type="hidden" name="action" value="invite_email">
+                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                    
+                                    <div class="form-control w-full">
+                                        <label class="label">
+                                            <span class="label-text">Email Address</span>
+                                        </label>
+                                        <input type="email" name="email" placeholder="user@example.com" class="input input-bordered w-full" required />
+                                    </div>
+
+                                    <div class="modal-action">
+                                        <button type="button" class="btn" onclick="inviteModal.close()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Send Invite</button>
+                                    </div>
+                                </form>
+                            </div>
                             
-                            <div class="form-control w-full mb-4">
-                                <label class="label">
-                                    <span class="label-text">Email Address</span>
-                                </label>
-                                <input type="email" name="email" placeholder="user@example.com" class="input input-bordered w-full" required />
-                            </div>
+                            <input type="radio" name="invite_tabs" role="tab" class="tab" aria-label="Generate Token" />
+                            <div role="tabpanel" class="tab-content pt-4">
+                                <form method="POST" action="/team/invite" class="space-y-4">
+                                    <input type="hidden" name="action" value="generate_token">
+                                    <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                    
+                                    <p class="text-sm text-base-content/70">Generate a shareable invite link. Anyone with this link can join as a member.</p>
+                                    
+                                    <div class="alert alert-info">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>Token expires in 7 days and can only invite as <strong>member</strong> role.</span>
+                                    </div>
 
-                            <div class="form-control w-full mb-4">
-                                <label class="label">
-                                    <span class="label-text">Role</span>
-                                </label>
-                                <select name="role" class="select select-bordered w-full">
-                                    <option value="member">Member</option>
-                                    <?php if ($selectedTeam['user_role'] === 'owner'): ?>
-                                        <option value="admin">Admin</option>
-                                    <?php endif; ?>
-                                </select>
+                                    <div class="modal-action">
+                                        <button type="button" class="btn" onclick="inviteModal.close()">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Generate Token</button>
+                                    </div>
+                                </form>
                             </div>
-
-                            <div class="modal-action">
-                                <button type="button" class="btn" onclick="inviteModal.close()">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Send Invite</button>
-                            </div>
-                        </form>
+                        </div>
                     </div>
                     <form method="dialog" class="modal-backdrop">
                         <button>close</button>
@@ -293,6 +355,21 @@ ob_start();
 </div>
 
 <script>
+function copyInviteLink() {
+    const input = document.getElementById('inviteLink');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value);
+    
+    // Show feedback
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => {
+        btn.textContent = originalText;
+    }, 2000);
+}
+
 function changeRole(teamId, userId, newRole) {
     if (confirm(`Change role to ${newRole}?`)) {
         // TODO: Implement API call
