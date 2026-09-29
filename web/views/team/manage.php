@@ -97,21 +97,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
         exit;
+        
+    } elseif ($action === 'transfer_ownership') {
+        $newOwnerId = \App\Services\IdEncoder::decode($_POST['new_owner_id'] ?? '');
+        if (!$newOwnerId) {
+            $_SESSION['flash_error'] = 'Invalid user ID';
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
+            exit;
+        }
+        $result = $teamController->transferOwnership($teamId, $_SESSION['user']['id'], $newOwnerId);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = $result['message'];
+        } else {
+            $_SESSION['flash_error'] = $result['error'];
+        }
+        
+        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($teamId));
+        exit;
     }
 }
 
-// Get user's teams
-$allTeams = $teamController->getTeamsForUser($_SESSION['user']['id']);
-$teams = $allTeams;
-
-// Handle search
+// Get user's teams with pagination and search
 $searchQuery = isset($_GET['search']) ? trim($_GET['search']) : '';
-if ($searchQuery && empty($selectedTeamId)) {
-    $teams = array_filter($teams, function($team) use ($searchQuery) {
-        return stripos($team['name'], $searchQuery) !== false || 
-               stripos($team['description'] ?? '', $searchQuery) !== false;
-    });
-}
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$perPage = 10;
+
+$teamData = $teamController->getTeamsForUser($_SESSION['user']['id'], $searchQuery, $page, $perPage);
+$allTeams = $teamData['teams'];
+$totalPages = $teamData['totalPages'];
+$total = $teamData['total'];
 
 // Check if viewing specific team
 $selectedTeamId = null;
@@ -120,11 +135,14 @@ if (isset($_GET['id'])) {
 }
 $selectedTeam = null;
 $members = [];
+$memberSearch = '';
 
 if ($selectedTeamId) {
     $selectedTeam = $teamController->getTeamById($selectedTeamId, $_SESSION['user']['id']);
     if ($selectedTeam) {
-        $members = $teamController->getTeamMembers($selectedTeamId);
+        // Member search
+        $memberSearch = isset($_GET['member_search']) ? trim($_GET['member_search']) : '';
+        $members = $teamController->getTeamMembers($selectedTeamId, $memberSearch);
         $selectedTeam['member_count'] = count($members);
         $selectedTeam['members'] = $members;
     }
@@ -233,6 +251,9 @@ ob_start();
                             </button>
                         <?php endif; ?>
                         <?php if ($selectedTeam['user_role'] === 'owner'): ?>
+                            <button class="btn btn-warning btn-sm" onclick="transferOwnershipModal.showModal()">
+                                Transfer Ownership
+                            </button>
                             <a href="/team/settings?id=<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>" class="btn btn-outline btn-sm">
                                 Settings
                             </a>
@@ -242,7 +263,23 @@ ob_start();
 
                 <div class="divider"></div>
 
-                <h3 class="font-bold text-lg mb-4">Members</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg">Members</h3>
+                    <form method="GET" class="flex gap-2">
+                        <input type="hidden" name="id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                        <input type="text" name="member_search" value="<?= htmlspecialchars($memberSearch) ?>" 
+                               placeholder="Search members..." class="input input-bordered input-sm w-64" />
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </button>
+                        <?php if ($memberSearch): ?>
+                            <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>" class="btn btn-sm btn-ghost">Clear</a>
+                        <?php endif; ?>
+                    </form>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="table table-zebra w-full">
                         <thead>
@@ -451,6 +488,54 @@ ob_start();
                         <button>close</button>
                     </form>
                 </dialog>
+
+                <!-- Transfer Ownership Modal -->
+                <?php if ($selectedTeam['user_role'] === 'owner'): ?>
+                    <dialog id="transferOwnershipModal" class="modal">
+                        <div class="modal-box">
+                            <h3 class="font-bold text-lg">Transfer Ownership</h3>
+                            <p class="py-4 text-sm text-base-content/70">
+                                Transfer ownership of this team to another member. You will become an admin after the transfer.
+                            </p>
+                            <form method="POST" class="space-y-4">
+                                <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+                                <input type="hidden" name="action" value="transfer_ownership">
+                                <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                
+                                <div class="form-control w-full">
+                                    <label class="label">
+                                        <span class="label-text">Select New Owner</span>
+                                    </label>
+                                    <select name="new_owner_id" class="select select-bordered w-full" required>
+                                        <option value="">Choose a member...</option>
+                                        <?php foreach ($selectedTeam['members'] as $member): ?>
+                                            <?php if ($member['id'] !== $_SESSION['user']['id'] && $member['role'] !== 'owner'): ?>
+                                                <option value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
+                                                    <?= htmlspecialchars($member['name']) ?> (<?= ucfirst($member['role']) ?>)
+                                                </option>
+                                            <?php endif; ?>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="alert alert-warning">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <span>This action cannot be undone easily. The new owner will have full control.</span>
+                                </div>
+
+                                <div class="modal-action">
+                                    <button type="button" class="btn" onclick="transferOwnershipModal.close()">Cancel</button>
+                                    <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to transfer ownership? This action cannot be undone easily.')">Transfer Ownership</button>
+                                </div>
+                            </form>
+                        </div>
+                        <form method="dialog" class="modal-backdrop">
+                            <button>close</button>
+                        </form>
+                    </dialog>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     <?php else: ?>
@@ -470,18 +555,31 @@ ob_start();
             </form>
         </div>
         
-        <?php if (empty($teams)): ?>
+        <?php if (empty($allTeams)): ?>
             <div class="card bg-base-100 shadow-xl">
                 <div class="card-body text-center py-16">
                     <h2 class="text-2xl font-bold mb-4">No teams found</h2>
                     <p class="text-base-content/70 mb-6">
-                        No teams match your search "<?= htmlspecialchars($searchQuery) ?>"
+                        <?php if ($searchQuery): ?>
+                            No teams match your search "<?= htmlspecialchars($searchQuery) ?>"
+                        <?php else: ?>
+                            You're not in any teams yet
+                        <?php endif; ?>
                     </p>
+                    <?php if (!$searchQuery): ?>
+                    <div class="flex gap-4 justify-center">
+                        <a href="/team/create" class="btn btn-primary">Create Team</a>
+                        <a href="/team/join" class="btn btn-outline">Join Team</a>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         <?php else: ?>
+        <div class="mb-4 text-sm text-base-content/70">
+            Showing <?= count($allTeams) ?> of <?= $total ?> teams
+        </div>
         <div class="grid gap-4">
-            <?php foreach ($teams as $team): ?>
+            <?php foreach ($allTeams as $team): ?>
                 <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($team['id']) ?>" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
                     <div class="card-body">
                         <div class="flex items-center gap-4">
@@ -512,6 +610,41 @@ ob_start();
                 </a>
             <?php endforeach; ?>
         </div>
+
+        <!-- Pagination -->
+        <?php if ($totalPages > 1): ?>
+            <div class="flex justify-center mt-6">
+                <div class="join">
+                    <?php
+                    // Build query string without page
+                    $queryParams = $_GET;
+                    unset($queryParams['page']);
+                    $queryString = http_build_query($queryParams);
+                    ?>
+                    
+                    <?php if ($page > 1): ?>
+                        <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page - 1 ?>" class="join-item btn btn-sm">«</a>
+                    <?php endif; ?>
+                    
+                    <?php
+                    // Show page numbers
+                    $startPage = max(1, $page - 2);
+                    $endPage = min($totalPages, $page + 2);
+                    
+                    for ($i = $startPage; $i <= $endPage; $i++):
+                    ?>
+                        <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $i ?>" 
+                           class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
+                            <?= $i ?>
+                        </a>
+                    <?php endfor; ?>
+                    
+                    <?php if ($page < $totalPages): ?>
+                        <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page + 1 ?>" class="join-item btn btn-sm">»</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
         <?php endif; ?>
     <?php endif; ?>
 </div>

@@ -4,16 +4,19 @@ namespace App\Controllers;
 
 use App\Services\Database;
 use App\Services\EmailService;
+use App\Services\ActivityLogService;
 
 class TeamController
 {
     private $db;
     private $emailService;
+    private $activityLog;
 
     public function __construct()
     {
         $this->db = Database::getInstance();
         $this->emailService = new EmailService();
+        $this->activityLog = new ActivityLogService();
     }
 
     /**
@@ -135,6 +138,19 @@ class TeamController
             $stmt->execute();
             $stmt->close();
         }
+
+        // Get team name for logging
+        $teamName = $this->getTeamName($invitation['team_id']);
+
+        // Log activity
+        $this->activityLog->log(
+            'team.join',
+            "Joined team '$teamName'",
+            $userId,
+            'team',
+            $invitation['team_id'],
+            ['role' => $role, 'via_invitation' => $isEmailInvite ? 'email' : 'token']
+        );
 
         return [
             'success' => true,
@@ -298,6 +314,23 @@ class TeamController
     }
 
     /**
+     * Get user name
+     */
+    private function getUserName(int $userId): string
+    {
+        $stmt = $this->db->prepare("
+            SELECT name FROM users
+            WHERE id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+        return $row['name'] ?? 'Unknown User';
+    }
+
+    /**
      * Create a new team
      */
     public function createTeam(array $data, array $files, int $userId): array
@@ -372,6 +405,16 @@ class TeamController
         }
         $stmt->close();
 
+        // Log activity
+        $this->activityLog->log(
+            'team.create',
+            "Created team '$name'",
+            $userId,
+            'team',
+            $teamId,
+            ['team_name' => $name, 'max_members' => $maxMembers]
+        );
+
         return [
             'success' => true,
             'team_id' => $teamId
@@ -381,18 +424,35 @@ class TeamController
     /**
      * Get all teams for a user
      */
-    public function getTeamsForUser(int $userId): array
+    public function getTeamsForUser(int $userId, string $search = '', int $page = 1, int $perPage = 10): array
     {
+        $offset = ($page - 1) * $perPage;
+        $searchParam = "%$search%";
+
+        // Get total count for pagination
+        $countStmt = $this->db->prepare("
+            SELECT COUNT(*) as total
+            FROM teams t
+            JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ? AND tm.deleted_at IS NULL
+            WHERE t.deleted_at IS NULL AND (t.name LIKE ? OR t.description LIKE ?)
+        ");
+        $countStmt->bind_param('iss', $userId, $searchParam, $searchParam);
+        $countStmt->execute();
+        $total = $countStmt->get_result()->fetch_assoc()['total'];
+        $countStmt->close();
+
+        // Get paginated results
         $stmt = $this->db->prepare("
             SELECT t.id, t.name, t.description, t.logo_url, t.max_members,
                    tm.role as user_role,
                    (SELECT COUNT(*) FROM team_members WHERE team_id = t.id AND deleted_at IS NULL) as member_count
             FROM teams t
             JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ? AND tm.deleted_at IS NULL
-            WHERE t.deleted_at IS NULL
+            WHERE t.deleted_at IS NULL AND (t.name LIKE ? OR t.description LIKE ?)
             ORDER BY t.created_at DESC
+            LIMIT ? OFFSET ?
         ");
-        $stmt->bind_param('i', $userId);
+        $stmt->bind_param('issii', $userId, $searchParam, $searchParam, $perPage, $offset);
         $stmt->execute();
         $result = $stmt->get_result();
         $teams = [];
@@ -402,7 +462,13 @@ class TeamController
         }
         $stmt->close();
         
-        return $teams;
+        return [
+            'teams' => $teams,
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => ceil($total / $perPage)
+        ];
     }
 
     /**
@@ -429,13 +495,16 @@ class TeamController
     /**
      * Get team members
      */
-    public function getTeamMembers(int $teamId): array
+    public function getTeamMembers(int $teamId, string $search = ''): array
     {
+        $searchParam = "%$search%";
+        
         $stmt = $this->db->prepare("
             SELECT u.id, u.name, u.email, u.avatar_url, tm.role, tm.joined_at
             FROM team_members tm
             JOIN users u ON u.id = tm.user_id
             WHERE tm.team_id = ? AND tm.deleted_at IS NULL AND u.deleted_at IS NULL
+            AND (u.name LIKE ? OR u.email LIKE ?)
             ORDER BY 
                 CASE tm.role 
                     WHEN 'owner' THEN 1 
@@ -444,7 +513,7 @@ class TeamController
                 END,
                 tm.joined_at ASC
         ");
-        $stmt->bind_param('i', $teamId);
+        $stmt->bind_param('iss', $teamId, $searchParam, $searchParam);
         $stmt->execute();
         $result = $stmt->get_result();
         $members = [];
@@ -585,6 +654,20 @@ class TeamController
         }
         $stmt->close();
 
+        // Get names for logging
+        $teamName = $this->getTeamName($teamId);
+        $targetUserName = $this->getUserName($targetUserId);
+
+        // Log activity
+        $this->activityLog->log(
+            'team.member.kick',
+            "Kicked $targetUserName from team '$teamName'",
+            $userId,
+            'team',
+            $teamId,
+            ['kicked_user_id' => $targetUserId, 'kicked_user_name' => $targetUserName]
+        );
+
         return ['success' => true, 'message' => 'Member kicked successfully'];
     }
 
@@ -615,6 +698,18 @@ class TeamController
             return ['success' => false, 'error' => 'Failed to leave team'];
         }
         $stmt->close();
+
+        // Get team name for logging
+        $teamName = $this->getTeamName($teamId);
+
+        // Log activity
+        $this->activityLog->log(
+            'team.leave',
+            "Left team '$teamName'",
+            $userId,
+            'team',
+            $teamId
+        );
 
         return ['success' => true, 'message' => 'You have left the team'];
     }
@@ -682,6 +777,84 @@ class TeamController
         }
 
         return ['success' => true, 'message' => 'Role changed successfully'];
+    }
+
+    /**
+     * Transfer ownership to another member (owner only)
+     */
+    public function transferOwnership(int $teamId, int $currentOwnerId, int $newOwnerId): array
+    {
+        // Check if current user is owner
+        if (!$this->isTeamOwner($teamId, $currentOwnerId)) {
+            return ['success' => false, 'error' => 'Only team owner can transfer ownership'];
+        }
+
+        // Cannot transfer to self
+        if ($currentOwnerId === $newOwnerId) {
+            return ['success' => false, 'error' => 'Cannot transfer ownership to yourself'];
+        }
+
+        // Check if new owner is a member
+        $newOwnerRole = $this->getUserRoleInTeam($teamId, $newOwnerId);
+        if (!$newOwnerRole) {
+            return ['success' => false, 'error' => 'Target user is not a member of this team'];
+        }
+
+        // Start transaction
+        $this->db->begin_transaction();
+
+        try {
+            // Update new owner's role
+            $stmt = $this->db->prepare("
+                UPDATE team_members 
+                SET role = 'owner' 
+                WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            ");
+            $stmt->bind_param('ii', $teamId, $newOwnerId);
+            $stmt->execute();
+            $stmt->close();
+
+            // Demote current owner to admin
+            $stmt = $this->db->prepare("
+                UPDATE team_members 
+                SET role = 'admin' 
+                WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            ");
+            $stmt->bind_param('ii', $teamId, $currentOwnerId);
+            $stmt->execute();
+            $stmt->close();
+
+            // Update team owner_id
+            $stmt = $this->db->prepare("
+                UPDATE teams 
+                SET owner_id = ? 
+                WHERE id = ?
+            ");
+            $stmt->bind_param('ii', $newOwnerId, $teamId);
+            $stmt->execute();
+            $stmt->close();
+
+            $this->db->commit();
+
+            // Get names for logging
+            $teamName = $this->getTeamName($teamId);
+            $newOwnerName = $this->getUserName($newOwnerId);
+
+            // Log activity
+            $this->activityLog->log(
+                'team.ownership.transfer',
+                "Transferred ownership of team '$teamName' to $newOwnerName",
+                $currentOwnerId,
+                'team',
+                $teamId,
+                ['new_owner_id' => $newOwnerId, 'new_owner_name' => $newOwnerName]
+            );
+
+            return ['success' => true, 'message' => 'Ownership transferred successfully'];
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            return ['success' => false, 'error' => 'Failed to transfer ownership'];
+        }
     }
 
     /**
