@@ -48,9 +48,29 @@ class TeamController
         $invitationId = $this->db->insert_id;
         $stmt->close();
 
+        // Log activity
+        $teamName = $this->getTeamName($teamId);
+        $inviteType = $email ? 'email' : 'token';
+        $description = $email 
+            ? "Sent email invitation to $email for team '$teamName'"
+            : "Generated invite token for team '$teamName'";
+        
+        $this->activityLog->log(
+            'team.invite.create',
+            $description,
+            $userId,
+            'team',
+            $teamId,
+            [
+                'invitation_id' => $invitationId,
+                'invite_type' => $inviteType,
+                'email' => $email,
+                'expires_at' => $expiresAt
+            ]
+        );
+
         // If email provided, send invitation email
         if ($email) {
-            $teamName = $this->getTeamName($teamId);
             $this->emailService->sendInvitationEmail($email, $teamName, $token);
         }
 
@@ -208,6 +228,17 @@ class TeamController
             return ['success' => false, 'error' => 'Failed to revoke token'];
         }
         $stmt->close();
+
+        // Log activity
+        $teamName = $this->getTeamName($teamId);
+        $this->activityLog->log(
+            'team.invite.revoke',
+            "Revoked invitation for team '$teamName'",
+            $userId,
+            'team',
+            $teamId,
+            ['invitation_id' => $invitationId]
+        );
 
         return ['success' => true, 'message' => 'Token revoked successfully'];
     }

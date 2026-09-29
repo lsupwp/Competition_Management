@@ -60,6 +60,8 @@ ob_start();
                         <option value="team.leave" <?= ($filters['action'] ?? '') === 'team.leave' ? 'selected' : '' ?>>Team Left</option>
                         <option value="team.member.kick" <?= ($filters['action'] ?? '') === 'team.member.kick' ? 'selected' : '' ?>>Member Kicked</option>
                         <option value="team.ownership.transfer" <?= ($filters['action'] ?? '') === 'team.ownership.transfer' ? 'selected' : '' ?>>Ownership Transferred</option>
+                        <option value="team.invite.create" <?= ($filters['action'] ?? '') === 'team.invite.create' ? 'selected' : '' ?>>Invitation Created</option>
+                        <option value="team.invite.revoke" <?= ($filters['action'] ?? '') === 'team.invite.revoke' ? 'selected' : '' ?>>Invitation Revoked</option>
                     </select>
                 </div>
 
