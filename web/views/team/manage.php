@@ -289,6 +289,20 @@ ob_start();
 
             <!-- Invite Modal -->
             <?php if ($selectedTeam['user_role'] === 'owner' || $selectedTeam['user_role'] === 'admin'): ?>
+                <?php
+                // Get existing valid tokens for this team
+                $db = \App\Services\Database::getInstance();
+                $stmt = $db->prepare("
+                    SELECT token, expires_at, created_at
+                    FROM team_invitations
+                    WHERE team_id = ? AND deleted_at IS NULL AND used_at IS NULL AND expires_at > NOW()
+                    ORDER BY created_at DESC
+                ");
+                $stmt->bind_param('i', $selectedTeam['id']);
+                $stmt->execute();
+                $existingTokens = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+                ?>
                 <dialog id="inviteModal" class="modal">
                     <div class="modal-box">
                         <h3 class="font-bold text-lg">Invite Member to <?= htmlspecialchars($selectedTeam['name']) ?></h3>
@@ -316,6 +330,25 @@ ob_start();
                             
                             <input type="radio" name="invite_tabs" role="tab" class="tab" aria-label="Generate Token" />
                             <div role="tabpanel" class="tab-content pt-4">
+                                <?php if (!empty($existingTokens)): ?>
+                                    <div class="space-y-3 mb-4">
+                                        <h4 class="font-semibold text-sm">Active Invite Links:</h4>
+                                        <?php foreach ($existingTokens as $tokenData): ?>
+                                            <div class="bg-base-200 p-3 rounded-lg">
+                                                <div class="flex items-center gap-2 mb-2">
+                                                    <input type="text" value="http://localhost:8000/team/join?token=<?= htmlspecialchars($tokenData['token']) ?>" 
+                                                           class="input input-bordered input-sm flex-1 text-xs" readonly id="token_<?= htmlspecialchars($tokenData['token']) ?>" />
+                                                    <button class="btn btn-sm btn-primary" onclick="copyToken('token_<?= htmlspecialchars($tokenData['token']) ?>')">Copy</button>
+                                                </div>
+                                                <div class="text-xs opacity-70">
+                                                    Expires: <?= date('M d, Y H:i', strtotime($tokenData['expires_at'])) ?>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <div class="divider text-xs">OR GENERATE NEW</div>
+                                <?php endif; ?>
+                                
                                 <form method="POST" action="/team/invite" class="space-y-4">
                                     <input type="hidden" name="action" value="generate_token">
                                     <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
@@ -388,6 +421,21 @@ ob_start();
 <script>
 function copyInviteLink() {
     const input = document.getElementById('inviteLink');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value);
+    
+    // Show feedback
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => {
+        btn.textContent = originalText;
+    }, 2000);
+}
+
+function copyToken(inputId) {
+    const input = document.getElementById(inputId);
     input.select();
     input.setSelectionRange(0, 99999);
     navigator.clipboard.writeText(input.value);
