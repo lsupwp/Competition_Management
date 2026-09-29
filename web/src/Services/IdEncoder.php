@@ -26,9 +26,10 @@ class IdEncoder
         // Simple XOR encryption + base64
         $encrypted = '';
         $keyLength = strlen(self::$key);
+        $idStr = (string)$id;
         
-        for ($i = 0; $i < strlen((string)$id); $i++) {
-            $encrypted .= chr(ord((string)$id[$i]) ^ ord(self::$key[$i % $keyLength]));
+        for ($i = 0; $i < strlen($idStr); $i++) {
+            $encrypted .= chr(ord($idStr[$i]) ^ ord(self::$key[$i % $keyLength]));
         }
         
         return rtrim(strtr(base64_encode($encrypted), '+/', '-_'), '=');
