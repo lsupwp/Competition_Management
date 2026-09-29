@@ -39,7 +39,7 @@ class ActivityLogService
         ");
 
         $stmt->bind_param(
-            'ississs',
+            'ississss',
             $userId,
             $action,
             $entityType,
