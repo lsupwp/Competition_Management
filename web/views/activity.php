@@ -199,4 +199,4 @@ ob_start();
 
 <?php
 $content = ob_get_clean();
-include_once __DIR__ . '/../../templates/layout.php';
+include_once __DIR__ . '/../templates/layout.php';
