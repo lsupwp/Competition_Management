@@ -7,7 +7,6 @@
 -- =====================================================
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    google_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255),
@@ -21,7 +20,6 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at TIMESTAMP NULL,
     
     INDEX idx_email (email),
-    INDEX idx_google_id (google_id),
     INDEX idx_verification_token (verification_token),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
