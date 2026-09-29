@@ -101,7 +101,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get user's teams
-$teams = $teamController->getTeamsForUser($_SESSION['user']['id']);
+$allTeams = $teamController->getTeamsForUser($_SESSION['user']['id']);
+$teams = $allTeams;
+
+// Handle search
+$searchQuery = isset($_GET['search']) ? trim($_GET['search']) : '';
+if ($searchQuery && empty($selectedTeamId)) {
+    $teams = array_filter($teams, function($team) use ($searchQuery) {
+        return stripos($team['name'], $searchQuery) !== false || 
+               stripos($team['description'] ?? '', $searchQuery) !== false;
+    });
+}
 
 // Check if viewing specific team
 $selectedTeamId = null;
@@ -154,7 +164,7 @@ ob_start();
         <?php unset($_SESSION['flash_error']); ?>
     <?php endif; ?>
 
-    <?php if (empty($teams)): ?>
+    <?php if (empty($allTeams)): ?>
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body text-center py-16">
                 <h2 class="text-2xl font-bold mb-4">You're not in any teams yet</h2>
@@ -450,6 +460,31 @@ ob_start();
         </div>
     <?php else: ?>
         <!-- Team List View -->
+        <div class="mb-6">
+            <form method="GET" class="flex gap-2">
+                <input type="text" name="search" value="<?= htmlspecialchars($searchQuery) ?>" 
+                       placeholder="Search teams..." class="input input-bordered flex-1" />
+                <button type="submit" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </button>
+                <?php if ($searchQuery): ?>
+                <a href="/team/manage" class="btn btn-ghost">Clear</a>
+                <?php endif; ?>
+            </form>
+        </div>
+        
+        <?php if (empty($teams)): ?>
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body text-center py-16">
+                    <h2 class="text-2xl font-bold mb-4">No teams found</h2>
+                    <p class="text-base-content/70 mb-6">
+                        No teams match your search "<?= htmlspecialchars($searchQuery) ?>"
+                    </p>
+                </div>
+            </div>
+        <?php else: ?>
         <div class="grid gap-4">
             <?php foreach ($teams as $team): ?>
                 <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($team['id']) ?>" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
@@ -487,6 +522,7 @@ ob_start();
                 </a>
             <?php endforeach; ?>
         </div>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
 
