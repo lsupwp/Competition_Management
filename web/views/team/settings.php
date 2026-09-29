@@ -63,6 +63,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('i', $teamId);
         
         if ($stmt->execute()) {
+            // Log team deletion
+            $activityLog = new \App\Services\ActivityLogService();
+            $activityLog->log(
+                'team.delete',
+                "Deleted team '{$team['name']}'",
+                $_SESSION['user']['id'],
+                'team',
+                $teamId,
+                ['team_name' => $team['name']]
+            );
+            
             $_SESSION['flash_success'] = 'Team deleted successfully';
             header('Location: /team/manage');
         } else {

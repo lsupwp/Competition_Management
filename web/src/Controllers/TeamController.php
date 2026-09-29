@@ -637,6 +637,23 @@ class TeamController
         }
         $stmt->close();
 
+        // Log activity
+        $teamName = $this->getTeamName($teamId);
+        $changes = [];
+        if ($name !== ($data['original_name'] ?? '')) $changes[] = 'name';
+        if ($description !== ($data['original_description'] ?? '')) $changes[] = 'description';
+        if ($maxMembers !== ($data['original_max_members'] ?? 0)) $changes[] = 'max_members';
+        if ($logoUrl) $changes[] = 'logo';
+        
+        $this->activityLog->log(
+            'team.settings.update',
+            "Updated settings for team '$teamName'",
+            $userId,
+            'team',
+            $teamId,
+            ['changes' => $changes]
+        );
+
         return ['success' => true, 'message' => 'Team settings updated'];
     }
 
@@ -806,6 +823,23 @@ class TeamController
             $stmt->execute();
             $stmt->close();
         }
+
+        // Log activity
+        $teamName = $this->getTeamName($teamId);
+        $targetUserName = $this->getUserName($targetUserId);
+        $this->activityLog->log(
+            'team.member.role_change',
+            "Changed $targetUserName's role to $newRole in team '$teamName'",
+            $userId,
+            'team',
+            $teamId,
+            [
+                'target_user_id' => $targetUserId,
+                'target_user_name' => $targetUserName,
+                'old_role' => $targetRole,
+                'new_role' => $newRole
+            ]
+        );
 
         return ['success' => true, 'message' => 'Role changed successfully'];
     }

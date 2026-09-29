@@ -55,16 +55,28 @@ ob_start();
                     </label>
                     <select name="action" class="select select-bordered">
                         <option value="">All Actions</option>
-                        <option value="auth.login" <?= ($filters['action'] ?? '') === 'auth.login' ? 'selected' : '' ?>>User Login</option>
-                        <option value="auth.logout" <?= ($filters['action'] ?? '') === 'auth.logout' ? 'selected' : '' ?>>User Logout</option>
-                        <option value="auth.register" <?= ($filters['action'] ?? '') === 'auth.register' ? 'selected' : '' ?>>User Registration</option>
-                        <option value="team.create" <?= ($filters['action'] ?? '') === 'team.create' ? 'selected' : '' ?>>Team Created</option>
-                        <option value="team.join" <?= ($filters['action'] ?? '') === 'team.join' ? 'selected' : '' ?>>Team Joined</option>
-                        <option value="team.leave" <?= ($filters['action'] ?? '') === 'team.leave' ? 'selected' : '' ?>>Team Left</option>
-                        <option value="team.member.kick" <?= ($filters['action'] ?? '') === 'team.member.kick' ? 'selected' : '' ?>>Member Kicked</option>
-                        <option value="team.ownership.transfer" <?= ($filters['action'] ?? '') === 'team.ownership.transfer' ? 'selected' : '' ?>>Ownership Transferred</option>
-                        <option value="team.invite.create" <?= ($filters['action'] ?? '') === 'team.invite.create' ? 'selected' : '' ?>>Invitation Created</option>
-                        <option value="team.invite.revoke" <?= ($filters['action'] ?? '') === 'team.invite.revoke' ? 'selected' : '' ?>>Invitation Revoked</option>
+                        <optgroup label="Authentication">
+                            <option value="auth.login" <?= ($filters['action'] ?? '') === 'auth.login' ? 'selected' : '' ?>>User Login</option>
+                            <option value="auth.logout" <?= ($filters['action'] ?? '') === 'auth.logout' ? 'selected' : '' ?>>User Logout</option>
+                            <option value="auth.register" <?= ($filters['action'] ?? '') === 'auth.register' ? 'selected' : '' ?>>User Registration</option>
+                        </optgroup>
+                        <optgroup label="User Settings">
+                            <option value="user.profile.update" <?= ($filters['action'] ?? '') === 'user.profile.update' ? 'selected' : '' ?>>Profile Updated</option>
+                            <option value="user.email.change" <?= ($filters['action'] ?? '') === 'user.email.change' ? 'selected' : '' ?>>Email Changed</option>
+                            <option value="user.password.add" <?= ($filters['action'] ?? '') === 'user.password.add' ? 'selected' : '' ?>>Password Added</option>
+                        </optgroup>
+                        <optgroup label="Team Management">
+                            <option value="team.create" <?= ($filters['action'] ?? '') === 'team.create' ? 'selected' : '' ?>>Team Created</option>
+                            <option value="team.delete" <?= ($filters['action'] ?? '') === 'team.delete' ? 'selected' : '' ?>>Team Deleted</option>
+                            <option value="team.settings.update" <?= ($filters['action'] ?? '') === 'team.settings.update' ? 'selected' : '' ?>>Team Settings Updated</option>
+                            <option value="team.join" <?= ($filters['action'] ?? '') === 'team.join' ? 'selected' : '' ?>>Team Joined</option>
+                            <option value="team.leave" <?= ($filters['action'] ?? '') === 'team.leave' ? 'selected' : '' ?>>Team Left</option>
+                            <option value="team.member.kick" <?= ($filters['action'] ?? '') === 'team.member.kick' ? 'selected' : '' ?>>Member Kicked</option>
+                            <option value="team.member.role_change" <?= ($filters['action'] ?? '') === 'team.member.role_change' ? 'selected' : '' ?>>Member Role Changed</option>
+                            <option value="team.ownership.transfer" <?= ($filters['action'] ?? '') === 'team.ownership.transfer' ? 'selected' : '' ?>>Ownership Transferred</option>
+                            <option value="team.invite.create" <?= ($filters['action'] ?? '') === 'team.invite.create' ? 'selected' : '' ?>>Invitation Created</option>
+                            <option value="team.invite.revoke" <?= ($filters['action'] ?? '') === 'team.invite.revoke' ? 'selected' : '' ?>>Invitation Revoked</option>
+                        </optgroup>
                     </select>
                 </div>
 

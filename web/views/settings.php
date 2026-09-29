@@ -37,6 +37,9 @@ if (isset($_SESSION['settings_flash'])) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $flashData = [];
+    $activityLog = new \App\Services\ActivityLogService();
+    $userId = $_SESSION['user']['id'];
+    $userName = $_SESSION['user']['name'] ?? 'Unknown';
 
     if (isset($_POST['action']) && $_POST['action'] === 'edit_profile') {
         $name = trim($_POST['name'] ?? '');
@@ -108,6 +111,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flashData['error'] = implode('. ', $errors);
         } elseif (!empty($successMessages)) {
             $flashData['success'] = implode(' and ', $successMessages) . ' successfully';
+            
+            // Log profile update
+            $activityLog->log(
+                'user.profile.update',
+                "User '$userName' updated profile",
+                $userId,
+                'user',
+                $userId,
+                ['changes' => $successMessages]
+            );
         }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'change_email') {
         $newEmail = trim($_POST['new_email'] ?? '');
@@ -140,6 +153,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $_SESSION['user']['email'] = $newEmail;
                     $flashData['success'] = 'Email updated. Please check your inbox to verify your new email address.';
+                    
+                    // Log email change
+                    $activityLog->log(
+                        'user.email.change',
+                        "User '$userName' changed email to '$newEmail'",
+                        $userId,
+                        'user',
+                        $userId,
+                        ['new_email' => $newEmail]
+                    );
                 } else {
                     $flashData['error'] = 'Invalid password';
                 }
@@ -164,6 +187,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->execute()) {
                 $flashData['success'] = 'Password added successfully';
                 $hasPassword = true;
+                
+                // Log password addition
+                $activityLog->log(
+                    'user.password.add',
+                    "User '$userName' added password",
+                    $userId,
+                    'user',
+                    $userId
+                );
             } else {
                 $flashData['error'] = 'Failed to add password';
             }
