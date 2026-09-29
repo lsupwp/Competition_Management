@@ -305,7 +305,6 @@ class TeamController
         $name = trim($data['name'] ?? '');
         $description = trim($data['description'] ?? '');
         $maxMembers = (int)($data['max_members'] ?? 10);
-        $isPublic = (int)($data['is_public'] ?? 0);
 
         // Validate
         if (empty($name)) {
@@ -347,10 +346,10 @@ class TeamController
 
         // Insert team
         $stmt = $this->db->prepare("
-            INSERT INTO teams (owner_id, name, description, logo_url, max_members, is_public)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO teams (owner_id, name, description, logo_url, max_members)
+            VALUES (?, ?, ?, ?, ?)
         ");
-        $stmt->bind_param('isssii', $userId, $name, $description, $logoUrl, $maxMembers, $isPublic);
+        $stmt->bind_param('isssi', $userId, $name, $description, $logoUrl, $maxMembers);
         
         if (!$stmt->execute()) {
             return ['success' => false, 'error' => 'Failed to create team'];
@@ -385,7 +384,7 @@ class TeamController
     public function getTeamsForUser(int $userId): array
     {
         $stmt = $this->db->prepare("
-            SELECT t.id, t.name, t.description, t.logo_url, t.max_members, t.is_public,
+            SELECT t.id, t.name, t.description, t.logo_url, t.max_members,
                    tm.role as user_role,
                    (SELECT COUNT(*) FROM team_members WHERE team_id = t.id AND deleted_at IS NULL) as member_count
             FROM teams t
@@ -412,7 +411,7 @@ class TeamController
     public function getTeamById(int $teamId, int $userId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT t.id, t.name, t.description, t.logo_url, t.max_members, t.is_public, t.owner_id,
+            SELECT t.id, t.name, t.description, t.logo_url, t.max_members, t.owner_id,
                    tm.role as user_role
             FROM teams t
             JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ? AND tm.deleted_at IS NULL
@@ -471,7 +470,6 @@ class TeamController
         $name = trim($data['name'] ?? '');
         $description = trim($data['description'] ?? '');
         $maxMembers = (int)($data['max_members'] ?? 10);
-        $isPublic = (int)($data['is_public'] ?? 0);
 
         // Validate
         if (empty($name)) {
@@ -521,17 +519,17 @@ class TeamController
         if ($logoUrl) {
             $stmt = $this->db->prepare("
                 UPDATE teams 
-                SET name = ?, description = ?, logo_url = ?, max_members = ?, is_public = ?
+                SET name = ?, description = ?, logo_url = ?, max_members = ?
                 WHERE id = ?
             ");
-            $stmt->bind_param('sssiii', $name, $description, $logoUrl, $maxMembers, $isPublic, $teamId);
+            $stmt->bind_param('ssssi', $name, $description, $logoUrl, $maxMembers, $teamId);
         } else {
             $stmt = $this->db->prepare("
                 UPDATE teams 
-                SET name = ?, description = ?, max_members = ?, is_public = ?
+                SET name = ?, description = ?, max_members = ?
                 WHERE id = ?
             ");
-            $stmt->bind_param('ssiii', $name, $description, $maxMembers, $isPublic, $teamId);
+            $stmt->bind_param('ssi', $name, $description, $maxMembers, $teamId);
         }
         
         if (!$stmt->execute()) {

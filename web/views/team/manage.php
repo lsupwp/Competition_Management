@@ -221,11 +221,6 @@ ob_start();
                             <p class="text-sm text-base-content/70"><?= htmlspecialchars($selectedTeam['description'] ?? '') ?></p>
                             <div class="flex gap-2 mt-2">
                                 <span class="badge badge-outline"><?= $selectedTeam['member_count'] ?>/<?= $selectedTeam['max_members'] ?> members</span>
-                                <?php if ($selectedTeam['is_public']): ?>
-                                    <span class="badge badge-success badge-sm">Public</span>
-                                <?php else: ?>
-                                    <span class="badge badge-warning badge-sm">Private</span>
-                                <?php endif; ?>
                                 <span class="badge badge-primary badge-sm">Your role: <?= ucfirst($selectedTeam['user_role']) ?></span>
                             </div>
                         </div>
@@ -504,11 +499,6 @@ ob_start();
                                 <p class="text-sm text-base-content/70"><?= htmlspecialchars($team['description'] ?? '') ?></p>
                                 <div class="flex gap-2 mt-2">
                                     <span class="badge badge-outline"><?= $team['member_count'] ?>/<?= $team['max_members'] ?> members</span>
-                                    <?php if ($team['is_public']): ?>
-                                        <span class="badge badge-success badge-sm">Public</span>
-                                    <?php else: ?>
-                                        <span class="badge badge-warning badge-sm">Private</span>
-                                    <?php endif; ?>
                                     <span class="badge badge-primary badge-sm">Your role: <?= ucfirst($team['user_role']) ?></span>
                                 </div>
                             </div>

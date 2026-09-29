@@ -34,14 +34,12 @@ CREATE TABLE IF NOT EXISTS teams (
     description TEXT,
     logo_url VARCHAR(500),
     max_members INT DEFAULT 10,
-    is_public TINYINT(1) DEFAULT 0 COMMENT '0=private, 1=public',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
     
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_owner_id (owner_id),
-    INDEX idx_is_public (is_public),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

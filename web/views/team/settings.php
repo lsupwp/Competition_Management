@@ -183,33 +183,6 @@ ob_start();
                     </label>
                 </div>
 
-                <!-- Visibility -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text font-semibold">Team Visibility</span>
-                    </label>
-                    <div class="space-y-2">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="radio" name="is_public" value="1" 
-                                   class="radio radio-primary" 
-                                   <?= $selectedTeam['is_public'] ? 'checked' : '' ?> />
-                            <div>
-                                <div class="font-semibold">Public</div>
-                                <div class="text-sm text-base-content/70">Anyone can find and request to join</div>
-                            </div>
-                        </label>
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="radio" name="is_public" value="0" 
-                                   class="radio radio-primary" 
-                                   <?= !$selectedTeam['is_public'] ? 'checked' : '' ?> />
-                            <div>
-                                <div class="font-semibold">Private</div>
-                                <div class="text-sm text-base-content/70">Only invited members can join</div>
-                            </div>
-                        </label>
-                    </div>
-                </div>
-
                 <div class="divider"></div>
 
                 <!-- Submit Button -->

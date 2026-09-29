@@ -12,7 +12,7 @@ if (!isset($_SESSION['user'])) {
 $title = 'Create Team - Team Competition';
 
 $error = '';
-$old = ['name' => '', 'description' => '', 'max_members' => '10', 'is_public' => '0'];
+$old = ['name' => '', 'description' => '', 'max_members' => '10'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate CSRF token
@@ -32,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'name' => $_POST['name'] ?? '',
                 'description' => $_POST['description'] ?? '',
                 'max_members' => $_POST['max_members'] ?? '10',
-                'is_public' => $_POST['is_public'] ?? '0',
             ];
         }
     }
@@ -104,33 +103,6 @@ ob_start();
                     <label class="label">
                         <span class="label-text-alt">Must be between 2 and 100</span>
                     </label>
-                </div>
-
-                <!-- Visibility -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text font-semibold">Team Visibility</span>
-                    </label>
-                    <div class="space-y-2">
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="radio" name="is_public" value="1" 
-                                   class="radio radio-primary" 
-                                   <?= $old['is_public'] === '1' ? 'checked' : '' ?> />
-                            <div>
-                                <div class="font-semibold">Public</div>
-                                <div class="text-sm text-base-content/70">Anyone can find and request to join</div>
-                            </div>
-                        </label>
-                        <label class="label cursor-pointer justify-start gap-3">
-                            <input type="radio" name="is_public" value="0" 
-                                   class="radio radio-primary" 
-                                   <?= $old['is_public'] === '0' ? 'checked' : '' ?> />
-                            <div>
-                                <div class="font-semibold">Private</div>
-                                <div class="text-sm text-base-content/70">Only invited members can join</div>
-                            </div>
-                        </label>
-                    </div>
                 </div>
 
                 <div class="divider"></div>
