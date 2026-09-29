@@ -14,6 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// Validate CSRF token
+if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
+    $_SESSION['flash_error'] = 'Invalid security token. Please try again.';
+    header('Location: /team/manage');
+    exit;
+}
+
 $action = $_POST['action'] ?? '';
 $teamId = \App\Services\IdEncoder::decode($_POST['team_id'] ?? '');
 

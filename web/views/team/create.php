@@ -15,21 +15,26 @@ $error = '';
 $old = ['name' => '', 'description' => '', 'max_members' => '10', 'is_public' => '0'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $teamController = new \App\Controllers\TeamController();
-    $result = $teamController->createTeam($_POST, $_FILES, $_SESSION['user']['id']);
-    
-    if ($result['success']) {
-        $_SESSION['flash_success'] = 'Team created successfully!';
-        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
-        exit;
+    // Validate CSRF token
+    if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
+        $error = 'Invalid security token. Please try again.';
     } else {
-        $error = $result['error'];
-        $old = [
-            'name' => $_POST['name'] ?? '',
-            'description' => $_POST['description'] ?? '',
-            'max_members' => $_POST['max_members'] ?? '10',
-            'is_public' => $_POST['is_public'] ?? '0',
-        ];
+        $teamController = new \App\Controllers\TeamController();
+        $result = $teamController->createTeam($_POST, $_FILES, $_SESSION['user']['id']);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = 'Team created successfully!';
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
+            exit;
+        } else {
+            $error = $result['error'];
+            $old = [
+                'name' => $_POST['name'] ?? '',
+                'description' => $_POST['description'] ?? '',
+                'max_members' => $_POST['max_members'] ?? '10',
+                'is_public' => $_POST['is_public'] ?? '0',
+            ];
+        }
     }
 }
 
@@ -49,6 +54,7 @@ ob_start();
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
             <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                 <!-- Team Logo -->
                 <div class="form-control">
                     <label class="label">

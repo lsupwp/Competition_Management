@@ -15,6 +15,13 @@ $teamController = new \App\Controllers\TeamController();
 
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validate CSRF token
+    if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
+        $_SESSION['flash_error'] = 'Invalid security token. Please try again.';
+        header('Location: /team/manage');
+        exit;
+    }
+    
     $action = $_POST['action'] ?? '';
     $teamId = \App\Services\IdEncoder::decode($_POST['team_id'] ?? '');
     
@@ -264,6 +271,7 @@ ob_start();
                                     <td>
                                         <?php if ($selectedTeam['user_role'] === 'owner' && $member['id'] !== $_SESSION['user']['id']): ?>
                                             <form method="POST" style="display:inline;">
+                                                <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                 <input type="hidden" name="action" value="change_role">
                                                 <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                 <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
@@ -286,6 +294,7 @@ ob_start();
                                                 <span class="text-sm opacity-50">You (Owner)</span>
                                             <?php else: ?>
                                                 <form method="POST" style="display:inline;">
+                                                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="leave_team">
                                                     <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                     <button type="submit" class="btn btn-error btn-sm" onclick="return confirm('Are you sure you want to leave this team?')">
@@ -296,6 +305,7 @@ ob_start();
                                         <?php else: ?>
                                             <?php if ($selectedTeam['user_role'] === 'owner' && $member['role'] !== 'owner'): ?>
                                                 <form method="POST" style="display:inline;">
+                                                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="kick_member">
                                                     <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                     <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
@@ -305,6 +315,7 @@ ob_start();
                                                 </form>
                                             <?php elseif ($selectedTeam['user_role'] === 'admin' && $member['role'] === 'member'): ?>
                                                 <form method="POST" style="display:inline;">
+                                                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="kick_member">
                                                     <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                     <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
@@ -349,6 +360,7 @@ ob_start();
                             <input type="radio" name="invite_tabs" role="tab" class="tab" aria-label="Email Invite" checked />
                             <div role="tabpanel" class="tab-content pt-4">
                                 <form method="POST" action="/team/invite" class="space-y-4">
+                                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                     <input type="hidden" name="action" value="invite_email">
                                     <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                     
@@ -371,6 +383,7 @@ ob_start();
                                 <?php if (empty($existingTokens)): ?>
                                     <!-- No active token, show generate form -->
                                     <form method="POST" action="/team/invite" class="space-y-4">
+                                        <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                         <input type="hidden" name="action" value="generate_token">
                                         <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                         
@@ -405,6 +418,7 @@ ob_start();
                                                     if ($canRevoke): 
                                                     ?>
                                                         <form method="POST" style="display:inline;" onsubmit="return confirm('Revoke this token? It will no longer be usable.')">
+                                                            <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                             <input type="hidden" name="action" value="revoke_token">
                                                             <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                             <input type="hidden" name="invitation_id" value="<?= \App\Services\IdEncoder::encode($tokenData['id']) ?>">

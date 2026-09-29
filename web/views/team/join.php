@@ -68,30 +68,40 @@ if ($token) {
 
 // Handle POST - accept invitation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $token) {
-    $teamController = new \App\Controllers\TeamController();
-    $result = $teamController->acceptInvitation($token, $_SESSION['user']['id']);
-    
-    if ($result['success']) {
-        $_SESSION['flash_success'] = 'You have successfully joined the team!';
-        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
-        exit;
+    // Validate CSRF token
+    if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
+        $error = 'Invalid security token. Please try again.';
     } else {
-        $error = $result['error'];
+        $teamController = new \App\Controllers\TeamController();
+        $result = $teamController->acceptInvitation($token, $_SESSION['user']['id']);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = 'You have successfully joined the team!';
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
+            exit;
+        } else {
+            $error = $result['error'];
+        }
     }
 }
 
 // Handle POST - join with token (manual entry)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['token']) && !$token) {
-    $teamController = new \App\Controllers\TeamController();
-    $result = $teamController->acceptInvitation($_POST['token'], $_SESSION['user']['id']);
-    
-    if ($result['success']) {
-        $_SESSION['flash_success'] = 'You have successfully joined the team!';
-        header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
-        exit;
+    // Validate CSRF token
+    if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
+        $error = 'Invalid security token. Please try again.';
     } else {
-        $error = $result['error'];
-        $token = $_POST['token']; // Keep the token in the field
+        $teamController = new \App\Controllers\TeamController();
+        $result = $teamController->acceptInvitation($_POST['token'], $_SESSION['user']['id']);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = 'You have successfully joined the team!';
+            header('Location: /team/manage?id=' . \App\Services\IdEncoder::encode($result['team_id']));
+            exit;
+        } else {
+            $error = $result['error'];
+            $token = $_POST['token']; // Keep the token in the field
+        }
     }
 }
 
@@ -132,6 +142,7 @@ ob_start();
                 </div>
 
                 <form method="POST">
+                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                     <button type="submit" class="btn btn-primary w-full">Accept Invitation</button>
                 </form>
             </div>
@@ -144,6 +155,7 @@ ob_start();
                 <p class="text-base-content/70 mb-6">Enter the invitation token or click the link from your email to join a team.</p>
                 
                 <form method="POST" class="space-y-4">
+                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                     <div class="form-control">
                         <label class="label">
                             <span class="label-text">Invitation Token</span>

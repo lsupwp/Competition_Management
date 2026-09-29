@@ -26,6 +26,13 @@ $teamController = new \App\Controllers\TeamController();
 
 // Handle POST - update settings
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validate CSRF token
+    if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
+        $_SESSION['flash_error'] = 'Invalid security token. Please try again.';
+        header('Location: /team/settings?id=' . \App\Services\IdEncoder::encode($teamId));
+        exit;
+    }
+    
     $action = $_POST['action'] ?? '';
     
     if ($action === 'update_settings') {
@@ -118,6 +125,7 @@ ob_start();
             <h2 class="card-title text-xl mb-4">Team Settings</h2>
             
             <form method="POST" enctype="multipart/form-data" class="space-y-6">
+                <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                 <input type="hidden" name="action" value="update_settings">
 
                 <!-- Team Logo -->
@@ -223,6 +231,7 @@ ob_start();
                     <div class="text-sm text-base-content/70">Once deleted, this team cannot be recovered</div>
                 </div>
                 <form method="POST">
+                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                     <input type="hidden" name="action" value="delete_team">
                     <button type="submit" class="btn btn-error btn-outline" onclick="return confirm('Are you sure you want to delete this team? This action cannot be undone.')">
                         Delete Team
