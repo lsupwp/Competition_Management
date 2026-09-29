@@ -64,9 +64,9 @@ class TeamController
      */
     public function acceptInvitation(string $token, int $userId): array
     {
-        // Find valid invitation
+        // Find valid invitation (reusable - no used_at check)
         $stmt = $this->db->prepare("
-            SELECT id, team_id, email, role, expires_at, used_at
+            SELECT id, team_id, email, role, expires_at
             FROM team_invitations
             WHERE token = ? AND deleted_at IS NULL
         ");
@@ -78,11 +78,6 @@ class TeamController
 
         if (!$invitation) {
             return ['success' => false, 'error' => 'Invalid invitation token'];
-        }
-
-        // Check if already used
-        if ($invitation['used_at'] !== null) {
-            return ['success' => false, 'error' => 'Invitation already used'];
         }
 
         // Check if expired
@@ -121,21 +116,37 @@ class TeamController
         }
         $stmt->close();
 
-        // Mark invitation as used
-        $stmt = $this->db->prepare("
-            UPDATE team_invitations 
-            SET used_at = NOW() 
-            WHERE id = ?
-        ");
-        $stmt->bind_param('i', $invitation['id']);
-        $stmt->execute();
-        $stmt->close();
-
         return [
             'success' => true,
             'team_id' => $invitation['team_id'],
             'role' => $role
         ];
+    }
+
+    /**
+     * Revoke invitation token
+     */
+    public function revokeToken(int $teamId, int $userId, int $invitationId): array
+    {
+        // Check if user can manage team (owner or admin)
+        if (!$this->canInvite($teamId, $userId)) {
+            return ['success' => false, 'error' => 'Permission denied'];
+        }
+
+        // Soft delete the invitation
+        $stmt = $this->db->prepare("
+            UPDATE team_invitations 
+            SET deleted_at = NOW() 
+            WHERE id = ? AND team_id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ii', $invitationId, $teamId);
+        
+        if (!$stmt->execute()) {
+            return ['success' => false, 'error' => 'Failed to revoke token'];
+        }
+        $stmt->close();
+
+        return ['success' => true, 'message' => 'Token revoked successfully'];
     }
 
     /**

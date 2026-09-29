@@ -56,6 +56,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         header('Location: /team/manage?id=' . $teamId);
         exit;
+        
+    } elseif ($action === 'revoke_token') {
+        $invitationId = (int)($_POST['invitation_id'] ?? 0);
+        $result = $teamController->revokeToken($teamId, $_SESSION['user']['id'], $invitationId);
+        
+        if ($result['success']) {
+            $_SESSION['flash_success'] = $result['message'];
+        } else {
+            $_SESSION['flash_error'] = $result['error'];
+        }
+        
+        header('Location: /team/manage?id=' . $teamId);
+        exit;
     }
 }
 
@@ -293,7 +306,7 @@ ob_start();
                 // Get existing valid tokens for this team
                 $db = \App\Services\Database::getInstance();
                 $stmt = $db->prepare("
-                    SELECT token, expires_at, created_at
+                    SELECT id, token, expires_at, created_at
                     FROM team_invitations
                     WHERE team_id = ? AND deleted_at IS NULL AND used_at IS NULL AND expires_at > NOW()
                     ORDER BY created_at DESC
@@ -339,6 +352,12 @@ ob_start();
                                                     <input type="text" value="http://localhost:8000/team/join?token=<?= htmlspecialchars($tokenData['token']) ?>" 
                                                            class="input input-bordered input-sm flex-1 text-xs" readonly id="token_<?= htmlspecialchars($tokenData['token']) ?>" />
                                                     <button class="btn btn-sm btn-primary" onclick="copyToken('token_<?= htmlspecialchars($tokenData['token']) ?>')">Copy</button>
+                                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Revoke this token? It will no longer be usable.')">
+                                                        <input type="hidden" name="action" value="revoke_token">
+                                                        <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
+                                                        <input type="hidden" name="invitation_id" value="<?= $tokenData['id'] ?>">
+                                                        <button type="submit" class="btn btn-sm btn-error btn-outline">Revoke</button>
+                                                    </form>
                                                 </div>
                                                 <div class="text-xs opacity-70">
                                                     Expires: <?= date('M d, Y H:i', strtotime($tokenData['expires_at'])) ?>
@@ -353,13 +372,13 @@ ob_start();
                                     <input type="hidden" name="action" value="generate_token">
                                     <input type="hidden" name="team_id" value="<?= $selectedTeam['id'] ?>">
                                     
-                                    <p class="text-sm text-base-content/70">Generate a shareable invite link. Anyone with this link can join as a member.</p>
+                                    <p class="text-sm text-base-content/70">Generate a shareable invite link. Anyone with this link can join as a member. Link can be used multiple times until revoked or expired.</p>
                                     
                                     <div class="alert alert-info">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        <span>Token expires in 7 days and can only invite as <strong>member</strong> role.</span>
+                                        <span>Token expires in 7 days. Can be used multiple times until revoked or expired.</span>
                                     </div>
 
                                     <div class="modal-action">
