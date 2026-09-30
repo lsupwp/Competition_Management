@@ -37,9 +37,7 @@ logs/
 /uploads/
 /storage/
 web/uploads/avatars/*
-web/uploads/teams/*
 !web/uploads/avatars/.gitkeep
-!web/uploads/teams/.gitkeep
 
 # Node (if using Tailwind CLI later)
 /node_modules/
