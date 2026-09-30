@@ -114,34 +114,83 @@ class EventController
             return ['success' => false, 'error' => 'Event title must not exceed 255 characters'];
         }
 
-        // Insert event
-        $stmt = $this->db->prepare("
-            INSERT INTO events (created_by, title, description, location)
-            VALUES (?, ?, ?, ?)
-        ");
-        $stmt->bind_param('isss', $userId, $title, $description, $location);
-        
-        if (!$stmt->execute()) {
-            return ['success' => false, 'error' => 'Failed to create event'];
+        // Start transaction
+        $this->db->begin_transaction();
+
+        try {
+            // Insert event
+            $stmt = $this->db->prepare("
+                INSERT INTO events (created_by, title, description, location)
+                VALUES (?, ?, ?, ?)
+            ");
+            $stmt->bind_param('isss', $userId, $title, $description, $location);
+            
+            if (!$stmt->execute()) {
+                throw new \Exception('Failed to create event');
+            }
+            
+            $eventId = $this->db->insert_id;
+            $stmt->close();
+
+            // Insert event dates
+            if (isset($data['dates']) && is_array($data['dates'])) {
+                foreach ($data['dates'] as $date) {
+                    if (empty($date['date_type']) || empty($date['start_datetime']) || empty($date['end_datetime'])) {
+                        continue;
+                    }
+                    
+                    $stmt = $this->db->prepare("
+                        INSERT INTO event_dates (event_id, date_type, start_datetime, end_datetime, description)
+                        VALUES (?, ?, ?, ?, ?)
+                    ");
+                    $dateDescription = $date['description'] ?? '';
+                    $stmt->bind_param('issss', $eventId, $date['date_type'], $date['start_datetime'], $date['end_datetime'], $dateDescription);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            }
+
+            // Insert event tags
+            if (isset($data['tags']) && is_array($data['tags'])) {
+                foreach ($data['tags'] as $tag) {
+                    if (empty($tag['name'])) {
+                        continue;
+                    }
+                    
+                    $stmt = $this->db->prepare("
+                        INSERT INTO event_tags (event_id, name, color)
+                        VALUES (?, ?, ?)
+                    ");
+                    $color = $tag['color'] ?? '#3b82f6';
+                    $stmt->bind_param('iss', $eventId, $tag['name'], $color);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            }
+
+            // Commit transaction
+            $this->db->commit();
+
+            // Log activity
+            $this->activityLog->log(
+                'event.create',
+                "Created event '$title'",
+                $userId,
+                'event',
+                $eventId,
+                ['title' => $title]
+            );
+
+            return [
+                'success' => true,
+                'event_id' => $eventId
+            ];
+
+        } catch (\Exception $e) {
+            // Rollback on error
+            $this->db->rollback();
+            return ['success' => false, 'error' => $e->getMessage()];
         }
-        
-        $eventId = $this->db->insert_id;
-        $stmt->close();
-
-        // Log activity
-        $this->activityLog->log(
-            'event.create',
-            "Created event '$title'",
-            $userId,
-            'event',
-            $eventId,
-            ['title' => $title]
-        );
-
-        return [
-            'success' => true,
-            'event_id' => $eventId
-        ];
     }
 
     /**
