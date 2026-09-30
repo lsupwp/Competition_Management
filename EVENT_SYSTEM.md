@@ -215,7 +215,7 @@ Complete event management system with dynamic dates, custom tags, and visibility
 - `web/views/event/index.php` - Event list page
 - `web/views/event/view.php` - Event detail page
 - `web/src/Controllers/EventController.php` - Event business logic with team methods
-- `web/api/team-members.php` - API endpoint for team members
+- `web/api/team-members.php` - API endpoint for team members (AJAX)
 - `database.sql` - Database schema (updated with team_id, required_members)
 - `migrations/003_add_team_to_events.sql` - Migration for existing databases
 - `README.md` - Updated documentation
@@ -229,3 +229,4 @@ Complete event management system with dynamic dates, custom tags, and visibility
 5. `feat: add event dates, tags, and visibility to create form` - Complete event creation
 6. `docs: update README with detailed event system features` - Detailed documentation
 7. `feat: add team selection and member visibility to event creation` - Team-based events with visibility control
+8. `fix: correct autoload path in team-members API` - Fix API endpoint path
