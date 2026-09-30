@@ -21,11 +21,21 @@
 
 ### Event System
 - สร้างและจัดการงานแข่ง
-- Custom tags สำหรับงาน (สนใจ, ลงแล้ว, รอ, ฯลฯ)
-- Dynamic event dates (วันแข่ง, วันสิ้นสุดลงทะเบียน, วันประชุม)
-- ควบคุมการมองเห็นงาน (public/private)
+- **Event Dates:** เพิ่มวันที่ได้ไม่จำกัด (วันแข่ง, วันสิ้นสุดลงทะเบียน, วันประชุม, อื่นๆ)
+  - เลือกประเภทวันที่ (competition, registration_deadline, meeting, other)
+  - กำหนดช่วงเวลาเริ่มต้น-สิ้นสุด
+  - เพิ่มคำอธิบายแต่ละวันที่
+- **Event Tags:** สร้าง tags แบบกำหนดเองพร้อมสี
+  - เพิ่ม tags ได้ไม่จำกัด (เช่น สนใจ, ลงแล้ว, รอ, ฯลฯ)
+  - เลือกสีแบบ hex color สำหรับแต่ละ tag
+  - แสดง tags แบบ badge สีสวยงาม
+- **Event Visibility:** ควบคุมการมองเห็นงาน
+  - ค่าเริ่มต้น: public (ทุกคนเห็นได้)
+  - Private events: จัดการผ่าน event_visibility table หลังสร้าง event
+  - เพิ่ม/ลบ users ที่สามารถเห็น private event ได้
 - สมัครสมาชิกงาน (individual/team)
 - Pagination สำหรับรายการงาน
+- แสดง event dates และ tags ในหน้ารายการ
 
 ### User Management
 - Email/password authentication
