@@ -21,6 +21,12 @@
 
 ### Event System
 - สร้างและจัดการงานแข่ง
+- **Team Selection:** เลือกทีมที่ต้องการสร้างงาน (แสดงเฉพาะทีมที่ user เป็นสมาชิก)
+- **Required Members:** กำหนดจำนวนสมาชิกที่ต้องการต่อทีม (ค่าเริ่มต้น: 3)
+- **Member Visibility:** เลือกสมาชิกที่ต้องการให้มองเห็นงาน
+  - แสดง checkbox รายชื่อสมาชิกในทีมที่เลือก
+  - เลือกเฉพาะสมาชิกที่จะเข้าร่วมงาน (เช่น 3 คนจาก 10 คน)
+  - เฉพาะสมาชิกที่ถูกเลือกเท่านั้นที่จะเห็นงานนี้
 - **Event Dates:** เพิ่มวันที่ได้ไม่จำกัด (วันแข่ง, วันสิ้นสุดลงทะเบียน, วันประชุม, อื่นๆ)
   - เลือกประเภทวันที่ (competition, registration_deadline, meeting, other)
   - กำหนดช่วงเวลาเริ่มต้น-สิ้นสุด
@@ -29,10 +35,6 @@
   - เพิ่ม tags ได้ไม่จำกัด (เช่น สนใจ, ลงแล้ว, รอ, ฯลฯ)
   - เลือกสีแบบ hex color สำหรับแต่ละ tag
   - แสดง tags แบบ badge สีสวยงาม
-- **Event Visibility:** ควบคุมการมองเห็นงาน
-  - ค่าเริ่มต้น: public (ทุกคนเห็นได้)
-  - Private events: จัดการผ่าน event_visibility table หลังสร้าง event
-  - เพิ่ม/ลบ users ที่สามารถเห็น private event ได้
 - สมัครสมาชิกงาน (individual/team)
 - Pagination สำหรับรายการงาน
 - แสดง event dates และ tags ในหน้ารายการ
@@ -91,6 +93,7 @@ If you have an existing database, run migration files:
 ```bash
 docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/001_add_user_role.sql
 docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/002_add_activity_logs.sql
+docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/003_add_team_to_events.sql
 ```
 
 ### Create Admin Account
@@ -182,6 +185,7 @@ File-based routing - filename = URL path:
 | `web/views/event/index.php` | `/event` | Event list |
 | `web/views/event/view.php` | `/event/view` | Event detail |
 | `web/views/event/create.php` | `/event/create` | Create event |
+| `web/api/team-members.php` | `/api/team-members` | Get team members (AJAX) |
 | `web/api/hello.php` | - | Include in views |
 
 ## Database Schema
@@ -190,7 +194,7 @@ File-based routing - filename = URL path:
 - **teams** - Team information
 - **team_members** - Team membership with roles (owner, admin, member)
 - **team_invitations** - Invite tokens (email or shareable link)
-- **events** - Event/competition info
+- **events** - Event/competition info (team_id, required_members)
 - **event_dates** - Dynamic date ranges per event (competition, registration_deadline, meeting, etc.)
 - **event_tags** - Custom tags with colors
 - **event_registrations** - Event participation (individual or team)
