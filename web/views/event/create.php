@@ -1,6 +1,6 @@
 <?php
 // Route: /event/create
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 session_start();
 
@@ -58,7 +58,7 @@ ob_start();
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
             <form method="POST" class="space-y-4">
-                <?php include __DIR__ . '/../templates/components/csrf.php'; ?>
+                <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
 
                 <!-- Event Title -->
                 <div class="form-control">
@@ -99,4 +99,4 @@ ob_start();
 
 <?php
 $content = ob_get_clean();
-include_once __DIR__ . '/../templates/layout.php';
+include_once __DIR__ . '/../../templates/layout.php';
