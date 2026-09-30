@@ -13,8 +13,17 @@ $title = 'Create Event - Team Competition';
 
 $eventController = new \App\Controllers\EventController();
 
+// Get user's teams
+$userTeams = $eventController->getUserTeams($_SESSION['user']['id']);
+
 $error = '';
-$old = ['title' => '', 'description' => '', 'location' => ''];
+$old = [
+    'title' => '',
+    'description' => '',
+    'location' => '',
+    'team_id' => '',
+    'required_members' => 3
+];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate CSRF token
@@ -33,6 +42,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'title' => $_POST['title'] ?? '',
                 'description' => $_POST['description'] ?? '',
                 'location' => $_POST['location'] ?? '',
+                'team_id' => $_POST['team_id'] ?? '',
+                'required_members' => $_POST['required_members'] ?? 3
             ];
         }
     }
@@ -87,6 +98,51 @@ ob_start();
                     </label>
                     <textarea name="description" class="textarea textarea-bordered w-full h-32" 
                               placeholder="Event description"><?= htmlspecialchars($old['description']) ?></textarea>
+                </div>
+
+                <div class="divider">Team & Members</div>
+
+                <!-- Team Selection -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Team</span>
+                    </label>
+                    <select name="team_id" id="team_id" class="select select-bordered w-full" required>
+                        <option value="">Select a team</option>
+                        <?php foreach ($userTeams as $team): ?>
+                            <option value="<?= $team['id'] ?>" <?= $old['team_id'] == $team['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($team['name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label class="label">
+                        <span class="label-text-alt">Select which team this event is for</span>
+                    </label>
+                </div>
+
+                <!-- Required Members -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Required Members per Team</span>
+                    </label>
+                    <input type="number" name="required_members" value="<?= htmlspecialchars($old['required_members']) ?>" 
+                           class="input input-bordered w-full" min="1" max="100" required />
+                    <label class="label">
+                        <span class="label-text-alt">How many members from each team are needed?</span>
+                    </label>
+                </div>
+
+                <!-- Member Selection for Visibility -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Select Participating Members</span>
+                    </label>
+                    <div id="team-members-container" class="border border-base-300 rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <p class="text-base-content/50 text-sm">Select a team to see available members</p>
+                    </div>
+                    <label class="label">
+                        <span class="label-text-alt">Only selected members will see this event</span>
+                    </label>
                 </div>
 
                 <div class="divider">Event Dates</div>
@@ -160,18 +216,6 @@ ob_start();
                     Add Another Tag
                 </button>
 
-                <div class="divider">Visibility</div>
-                
-                <div class="alert alert-info">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div>
-                        <p class="font-semibold">Event Visibility</p>
-                        <p class="text-sm">By default, events are public and visible to everyone. After creating the event, you can manage visibility to make it private and invite specific users.</p>
-                    </div>
-                </div>
-
                 <div class="divider"></div>
 
                 <button type="submit" class="btn btn-primary w-full">Create Event</button>
@@ -183,6 +227,45 @@ ob_start();
 <script>
 let dateIndex = 1;
 let tagIndex = 1;
+
+// Load team members when team is selected
+document.getElementById('team_id').addEventListener('change', function() {
+    const teamId = this.value;
+    const container = document.getElementById('team-members-container');
+    
+    if (!teamId) {
+        container.innerHTML = '<p class="text-base-content/50 text-sm">Select a team to see available members</p>';
+        return;
+    }
+    
+    // Fetch team members via AJAX
+    fetch('/api/team-members?team_id=' + teamId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.members.length > 0) {
+                let html = '<div class="space-y-2">';
+                data.members.forEach(member => {
+                    html += `
+                        <label class="flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded">
+                            <input type="checkbox" name="visibility_users[]" value="${member.id}" class="checkbox checkbox-primary" />
+                            <div class="flex-1">
+                                <div class="font-semibold">${member.name}</div>
+                                <div class="text-sm text-base-content/70">${member.email}</div>
+                            </div>
+                        </label>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '<p class="text-base-content/50 text-sm">No members found in this team</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading team members:', error);
+            container.innerHTML = '<p class="text-error text-sm">Error loading members</p>';
+        });
+});
 
 function addEventDate() {
     const container = document.getElementById('event-dates-container');

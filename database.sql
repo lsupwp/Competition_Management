@@ -99,15 +99,19 @@ CREATE TABLE IF NOT EXISTS team_invitations (
 CREATE TABLE IF NOT EXISTS events (
     id INT AUTO_INCREMENT PRIMARY KEY,
     created_by INT NOT NULL,
+    team_id INT NULL COMMENT 'Team creating event',
     title VARCHAR(255) NOT NULL,
     description TEXT,
     location VARCHAR(500),
+    required_members INT DEFAULT 3 COMMENT 'Members needed per team',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
     
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
     INDEX idx_created_by (created_by),
+    INDEX idx_team_id (team_id),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

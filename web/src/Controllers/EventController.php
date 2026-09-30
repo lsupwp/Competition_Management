@@ -105,6 +105,9 @@ class EventController
         $title = trim($data['title'] ?? '');
         $description = trim($data['description'] ?? '');
         $location = trim($data['location'] ?? '');
+        $teamId = !empty($data['team_id']) ? (int)$data['team_id'] : null;
+        $requiredMembers = !empty($data['required_members']) ? (int)$data['required_members'] : 3;
+        $visibilityUserIds = $data['visibility_users'] ?? [];
 
         // Validate
         if (empty($title)) {
@@ -113,6 +116,12 @@ class EventController
         if (strlen($title) > 255) {
             return ['success' => false, 'error' => 'Event title must not exceed 255 characters'];
         }
+        if ($teamId && !$this->isUserTeamMember($teamId, $userId)) {
+            return ['success' => false, 'error' => 'You must be a member of the selected team'];
+        }
+        if ($requiredMembers < 1 || $requiredMembers > 100) {
+            return ['success' => false, 'error' => 'Required members must be between 1 and 100'];
+        }
 
         // Start transaction
         $this->db->begin_transaction();
@@ -120,10 +129,10 @@ class EventController
         try {
             // Insert event
             $stmt = $this->db->prepare("
-                INSERT INTO events (created_by, title, description, location)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO events (created_by, team_id, title, description, location, required_members)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
-            $stmt->bind_param('isss', $userId, $title, $description, $location);
+            $stmt->bind_param('iisssi', $userId, $teamId, $title, $description, $location, $requiredMembers);
             
             if (!$stmt->execute()) {
                 throw new \Exception('Failed to create event');
@@ -131,6 +140,22 @@ class EventController
             
             $eventId = $this->db->insert_id;
             $stmt->close();
+
+            // Insert event visibility (only selected users can see)
+            if (!empty($visibilityUserIds) && is_array($visibilityUserIds)) {
+                foreach ($visibilityUserIds as $visibilityUserId) {
+                    $visibilityUserId = (int)$visibilityUserId;
+                    if ($visibilityUserId > 0) {
+                        $stmt = $this->db->prepare("
+                            INSERT INTO event_visibility (event_id, user_id, granted_by)
+                            VALUES (?, ?, ?)
+                        ");
+                        $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
+            }
 
             // Insert event dates
             if (isset($data['dates']) && is_array($data['dates'])) {
@@ -178,7 +203,7 @@ class EventController
                 $userId,
                 'event',
                 $eventId,
-                ['title' => $title]
+                ['title' => $title, 'team_id' => $teamId, 'required_members' => $requiredMembers]
             );
 
             return [
@@ -191,6 +216,69 @@ class EventController
             $this->db->rollback();
             return ['success' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Check if user is member of team
+     */
+    private function isUserTeamMember(int $teamId, int $userId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT id FROM team_members
+            WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ii', $teamId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $exists = $result->num_rows > 0;
+        $stmt->close();
+        return $exists;
+    }
+
+    /**
+     * Get user's teams
+     */
+    public function getUserTeams(int $userId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT t.id, t.name
+            FROM teams t
+            INNER JOIN team_members tm ON t.id = tm.team_id
+            WHERE tm.user_id = ? AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
+            ORDER BY t.name
+        ");
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $teams = [];
+        while ($row = $result->fetch_assoc()) {
+            $teams[] = $row;
+        }
+        $stmt->close();
+        return $teams;
+    }
+
+    /**
+     * Get team members
+     */
+    public function getTeamMembers(int $teamId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT u.id, u.name, u.email
+            FROM users u
+            INNER JOIN team_members tm ON u.id = tm.user_id
+            WHERE tm.team_id = ? AND tm.deleted_at IS NULL AND u.deleted_at IS NULL
+            ORDER BY u.name
+        ");
+        $stmt->bind_param('i', $teamId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $members = [];
+        while ($row = $result->fetch_assoc()) {
+            $members[] = $row;
+        }
+        $stmt->close();
+        return $members;
     }
 
     /**
