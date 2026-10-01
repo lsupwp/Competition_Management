@@ -100,7 +100,10 @@ ob_start();
                     <?php endif; ?>
                     <?php if ($canDeleteEvent): ?>
                         <form method="POST" action="/event/delete"
-                              onsubmit="return confirm('Delete this event? This cannot be undone easily.');">
+                              data-confirm="Delete this event? This cannot be undone easily."
+                              data-confirm-title="Delete Event"
+                              data-confirm-text="Delete"
+                              data-confirm-class="btn-error">
                             <input type="hidden" name="event_id" value="<?= htmlspecialchars(\App\Services\IdEncoder::encode($event['id'])) ?>">
                             <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                             <button type="submit" class="btn btn-error btn-outline btn-sm">Delete</button>
@@ -296,14 +299,20 @@ ob_start();
                                         <td>
                                             <?php if ($canUnregister): ?>
                                                 <form method="POST" action="/event/unregister" class="inline"
-                                                      onsubmit="return confirm('Unregister from this event?');">
+                                                      data-confirm="Unregister from this event?"
+                                                      data-confirm-title="Unregister"
+                                                      data-confirm-text="Unregister"
+                                                      data-confirm-class="btn-error">
                                                     <input type="hidden" name="event_id" value="<?= htmlspecialchars($encodedEventId) ?>">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <button type="submit" class="btn btn-ghost btn-xs text-error">Unregister</button>
                                                 </form>
                                             <?php elseif ($canKick): ?>
                                                 <form method="POST" action="/event/unregister" class="inline"
-                                                      onsubmit="return confirm('Remove this user from the event?');">
+                                                      data-confirm="Remove this user from the event?"
+                                                      data-confirm-title="Kick Member"
+                                                      data-confirm-text="Kick"
+                                                      data-confirm-class="btn-error">
                                                     <input type="hidden" name="event_id" value="<?= htmlspecialchars($encodedEventId) ?>">
                                                     <input type="hidden" name="user_id" value="<?= htmlspecialchars(\App\Services\IdEncoder::encode($regUserId)) ?>">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>

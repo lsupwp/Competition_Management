@@ -334,33 +334,45 @@ ob_start();
                                             <?php if ($selectedTeam['user_role'] === 'owner'): ?>
                                                 <span class="text-sm opacity-50">You (Owner)</span>
                                             <?php else: ?>
-                                                <form method="POST" style="display:inline;">
+                                                <form method="POST" style="display:inline;"
+                                                      data-confirm="Are you sure you want to leave this team?"
+                                                      data-confirm-title="Leave Team"
+                                                      data-confirm-text="Leave"
+                                                      data-confirm-class="btn-error">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="leave_team">
                                                     <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
-                                                    <button type="submit" class="btn btn-error btn-sm" onclick="return confirm('Are you sure you want to leave this team?')">
+                                                    <button type="submit" class="btn btn-error btn-sm">
                                                         Leave Team
                                                     </button>
                                                 </form>
                                             <?php endif; ?>
                                         <?php else: ?>
                                             <?php if ($selectedTeam['user_role'] === 'owner' && $member['role'] !== 'owner'): ?>
-                                                <form method="POST" style="display:inline;">
+                                                <form method="POST" style="display:inline;"
+                                                      data-confirm="Are you sure you want to kick this member?"
+                                                      data-confirm-title="Kick Member"
+                                                      data-confirm-text="Kick"
+                                                      data-confirm-class="btn-error">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="kick_member">
                                                     <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                     <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
-                                                    <button type="submit" class="btn btn-error btn-sm btn-outline" onclick="return confirm('Are you sure you want to kick this member?')">
+                                                    <button type="submit" class="btn btn-error btn-sm btn-outline">
                                                         Kick
                                                     </button>
                                                 </form>
                                             <?php elseif ($selectedTeam['user_role'] === 'admin' && $member['role'] === 'member'): ?>
-                                                <form method="POST" style="display:inline;">
+                                                <form method="POST" style="display:inline;"
+                                                      data-confirm="Are you sure you want to kick this member?"
+                                                      data-confirm-title="Kick Member"
+                                                      data-confirm-text="Kick"
+                                                      data-confirm-class="btn-error">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="kick_member">
                                                     <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                     <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
-                                                    <button type="submit" class="btn btn-error btn-sm btn-outline" onclick="return confirm('Are you sure you want to kick this member?')">
+                                                    <button type="submit" class="btn btn-error btn-sm btn-outline">
                                                         Kick
                                                     </button>
                                                 </form>
@@ -458,7 +470,11 @@ ob_start();
                                                                  ($selectedTeam['user_role'] === 'admin' && $tokenData['invited_by'] == $_SESSION['user']['id']);
                                                     if ($canRevoke): 
                                                     ?>
-                                                        <form method="POST" style="display:inline;" onsubmit="return confirm('Revoke this token? It will no longer be usable.')">
+                                                        <form method="POST" style="display:inline;"
+                                                              data-confirm="Revoke this token? It will no longer be usable."
+                                                              data-confirm-title="Revoke Token"
+                                                              data-confirm-text="Revoke"
+                                                              data-confirm-class="btn-error">
                                                             <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                             <input type="hidden" name="action" value="revoke_token">
                                                             <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
@@ -496,7 +512,11 @@ ob_start();
                             <p class="py-4 text-sm text-base-content/70">
                                 Transfer ownership of this team to another member. You will become an admin after the transfer.
                             </p>
-                            <form method="POST" class="space-y-4">
+                            <form method="POST" class="space-y-4"
+                                  data-confirm="Are you sure you want to transfer ownership? This action cannot be undone easily."
+                                  data-confirm-title="Transfer Ownership"
+                                  data-confirm-text="Transfer"
+                                  data-confirm-class="btn-warning">
                                 <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                 <input type="hidden" name="action" value="transfer_ownership">
                                 <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
@@ -526,7 +546,7 @@ ob_start();
 
                                 <div class="modal-action">
                                     <button type="button" class="btn" onclick="transferOwnershipModal.close()">Cancel</button>
-                                    <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to transfer ownership? This action cannot be undone easily.')">Transfer Ownership</button>
+                                    <button type="submit" class="btn btn-warning">Transfer Ownership</button>
                                 </div>
                             </form>
                         </div>

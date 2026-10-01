@@ -214,10 +214,14 @@ ob_start();
                     <div class="font-semibold">Delete Team</div>
                     <div class="text-sm text-base-content/70">Once deleted, this team cannot be recovered</div>
                 </div>
-                <form method="POST">
+                <form method="POST"
+                      data-confirm="Are you sure you want to delete this team? This action cannot be undone."
+                      data-confirm-title="Delete Team"
+                      data-confirm-text="Delete"
+                      data-confirm-class="btn-error">
                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                     <input type="hidden" name="action" value="delete_team">
-                    <button type="submit" class="btn btn-error btn-outline" onclick="return confirm('Are you sure you want to delete this team? This action cannot be undone.')">
+                    <button type="submit" class="btn btn-error btn-outline">
                         Delete Team
                     </button>
                 </form>

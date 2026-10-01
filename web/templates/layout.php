@@ -36,6 +36,33 @@ if (session_status() === PHP_SESSION_NONE) {
 
     <?php include_once __DIR__ . '/footer.php'; ?>
 
+    <dialog id="app-confirm-modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg" id="app-confirm-title">Confirm</h3>
+            <p class="py-4 whitespace-pre-wrap" id="app-confirm-message"></p>
+            <div class="modal-action">
+                <button type="button" class="btn" id="app-confirm-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="app-confirm-ok">Confirm</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button type="submit">close</button>
+        </form>
+    </dialog>
+
+    <dialog id="app-alert-modal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg" id="app-alert-title">Notice</h3>
+            <p class="py-4 whitespace-pre-wrap" id="app-alert-message"></p>
+            <div class="modal-action">
+                <button type="button" class="btn btn-primary" id="app-alert-ok">OK</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button type="submit">close</button>
+        </form>
+    </dialog>
+
     <script>
         // Theme toggle
         const themeToggle = document.getElementById('theme-toggle');
@@ -53,6 +80,96 @@ if (session_status() === PHP_SESSION_NONE) {
         if (themeToggle) {
             themeToggle.checked = savedTheme === 'dark';
         }
+
+        window.appConfirm = function(message, options = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('app-confirm-modal');
+                const titleEl = document.getElementById('app-confirm-title');
+                const msgEl = document.getElementById('app-confirm-message');
+                const okBtn = document.getElementById('app-confirm-ok');
+                const cancelBtn = document.getElementById('app-confirm-cancel');
+
+                titleEl.textContent = options.title || 'Confirm';
+                msgEl.textContent = message;
+                okBtn.textContent = options.confirmText || 'Confirm';
+                cancelBtn.textContent = options.cancelText || 'Cancel';
+                okBtn.className = 'btn ' + (options.confirmClass || 'btn-primary');
+
+                const finish = (result) => {
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    modal.close();
+                    resolve(result);
+                };
+
+                okBtn.onclick = () => finish(true);
+                cancelBtn.onclick = () => finish(false);
+                modal.addEventListener('close', function onClose() {
+                    modal.removeEventListener('close', onClose);
+                    if (okBtn.onclick) {
+                        okBtn.onclick = null;
+                        cancelBtn.onclick = null;
+                        resolve(false);
+                    }
+                });
+                modal.showModal();
+            });
+        };
+
+        window.appAlert = function(message, options = {}) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('app-alert-modal');
+                const titleEl = document.getElementById('app-alert-title');
+                const msgEl = document.getElementById('app-alert-message');
+                const okBtn = document.getElementById('app-alert-ok');
+
+                titleEl.textContent = options.title || 'Notice';
+                msgEl.textContent = message;
+                okBtn.textContent = options.okText || 'OK';
+                okBtn.className = 'btn ' + (options.okClass || 'btn-primary');
+
+                const finish = () => {
+                    okBtn.onclick = null;
+                    modal.close();
+                    resolve();
+                };
+                okBtn.onclick = finish;
+                modal.addEventListener('close', function onClose() {
+                    modal.removeEventListener('close', onClose);
+                    if (okBtn.onclick) {
+                        okBtn.onclick = null;
+                        resolve();
+                    }
+                });
+                modal.showModal();
+            });
+        };
+
+        document.addEventListener('submit', async function(e) {
+            const form = e.target;
+            if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm')) {
+                return;
+            }
+            if (form.dataset.confirmAccepted === '1') {
+                delete form.dataset.confirmAccepted;
+                return;
+            }
+            e.preventDefault();
+            const ok = await window.appConfirm(form.dataset.confirm, {
+                title: form.dataset.confirmTitle || 'Confirm',
+                confirmText: form.dataset.confirmText || 'Confirm',
+                cancelText: form.dataset.confirmCancel || 'Cancel',
+                confirmClass: form.dataset.confirmClass || 'btn-primary',
+            });
+            if (ok) {
+                form.dataset.confirmAccepted = '1';
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
+            }
+        }, true);
     </script>
 </body>
 </html>
