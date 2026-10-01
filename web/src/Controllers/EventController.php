@@ -467,6 +467,10 @@ class EventController
         if ($requiredMembers < 1 || $requiredMembers > 100) {
             return ['success' => false, 'error' => 'Required members must be between 1 and 100'];
         }
+        $registeredCount = count($registeredUserIds);
+        if ($requiredMembers < $registeredCount) {
+            return ['success' => false, 'error' => "Required members cannot be below registered count ({$registeredCount})"];
+        }
 
         $this->db->begin_transaction();
 
