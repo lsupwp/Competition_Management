@@ -19,7 +19,7 @@ class EventController
     /**
      * Get events visible to user, with pagination
      */
-    public function getEvents(int $page = 1, int $perPage = 10, ?int $userId = null): array
+    public function getEvents(int $page = 1, int $perPage = 10, ?int $userId = null, ?int $teamId = null): array
     {
         $offset = ($page - 1) * $perPage;
 
@@ -48,33 +48,47 @@ class EventController
             ";
         }
 
-        // Get total count
+        $teamSql = '';
+        if ($teamId !== null) {
+            $teamSql = ' AND e.team_id = ? ';
+        }
+
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total
             FROM events e
             WHERE e.deleted_at IS NULL
             {$visibilitySql}
+            {$teamSql}
         ");
-        if ($userId !== null) {
+        if ($userId !== null && $teamId !== null) {
+            $countStmt->bind_param('iiiii', $userId, $userId, $userId, $userId, $teamId);
+        } elseif ($userId !== null) {
             $countStmt->bind_param('iiii', $userId, $userId, $userId, $userId);
+        } elseif ($teamId !== null) {
+            $countStmt->bind_param('i', $teamId);
         }
         $countStmt->execute();
         $total = $countStmt->get_result()->fetch_assoc()['total'];
         $countStmt->close();
 
-        // Get events with pagination
         $stmt = $this->db->prepare("
-            SELECT e.*, u.name as creator_name,
+            SELECT e.*, u.name as creator_name, t.name as team_name,
                    (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND deleted_at IS NULL) as registration_count
             FROM events e
             JOIN users u ON e.created_by = u.id
+            LEFT JOIN teams t ON e.team_id = t.id AND t.deleted_at IS NULL
             WHERE e.deleted_at IS NULL
             {$visibilitySql}
+            {$teamSql}
             ORDER BY e.created_at DESC
             LIMIT ? OFFSET ?
         ");
-        if ($userId !== null) {
+        if ($userId !== null && $teamId !== null) {
+            $stmt->bind_param('iiiiiii', $userId, $userId, $userId, $userId, $teamId, $perPage, $offset);
+        } elseif ($userId !== null) {
             $stmt->bind_param('iiiiii', $userId, $userId, $userId, $userId, $perPage, $offset);
+        } elseif ($teamId !== null) {
+            $stmt->bind_param('iii', $teamId, $perPage, $offset);
         } else {
             $stmt->bind_param('ii', $perPage, $offset);
         }
@@ -99,14 +113,32 @@ class EventController
     }
 
     /**
+     * Get team by ID
+     */
+    public function getTeamById(int $teamId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT id, name, description
+            FROM teams
+            WHERE id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('i', $teamId);
+        $stmt->execute();
+        $team = $stmt->get_result()->fetch_assoc() ?: null;
+        $stmt->close();
+        return $team;
+    }
+
+    /**
      * Get event by ID
      */
     public function getEventById(int $eventId): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT e.*, u.name as creator_name, u.email as creator_email
+            SELECT e.*, u.name as creator_name, u.email as creator_email, t.name as team_name
             FROM events e
             JOIN users u ON e.created_by = u.id
+            LEFT JOIN teams t ON e.team_id = t.id AND t.deleted_at IS NULL
             WHERE e.id = ? AND e.deleted_at IS NULL
         ");
         $stmt->bind_param('i', $eventId);

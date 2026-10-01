@@ -78,6 +78,13 @@ ob_start();
                         <span>Created by <?= htmlspecialchars($event['creator_name']) ?></span>
                         <span>•</span>
                         <span><?= date('M d, Y', strtotime($event['created_at'])) ?></span>
+                        <?php if (!empty($event['team_id']) && !empty($event['team_name'])): ?>
+                            <span>•</span>
+                            <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($event['team_id'])) ?>"
+                               class="link link-hover text-primary">
+                                <?= htmlspecialchars($event['team_name']) ?>
+                            </a>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="flex gap-2">
@@ -271,8 +278,11 @@ ob_start();
                                             </div>
                                         </td>
                                         <td>
-                                            <?php if ($reg['team_name']): ?>
-                                                <?= htmlspecialchars($reg['team_name']) ?>
+                                            <?php if (!empty($reg['team_id']) && !empty($reg['team_name'])): ?>
+                                                <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($reg['team_id'])) ?>"
+                                                   class="link link-hover text-primary">
+                                                    <?= htmlspecialchars($reg['team_name']) ?>
+                                                </a>
                                             <?php else: ?>
                                                 <span class="text-base-content/50">Individual</span>
                                             <?php endif; ?>

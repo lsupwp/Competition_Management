@@ -12,17 +12,38 @@ if (!isset($_SESSION['user'])) {
 $title = 'Events - Team Competition';
 
 $eventController = new \App\Controllers\EventController();
+$userId = (int)$_SESSION['user']['id'];
 
-// Get page number
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $perPage = 10;
 
-// Get events visible to current user
-$eventData = $eventController->getEvents($page, $perPage, $_SESSION['user']['id']);
+$filterTeamId = null;
+$filterTeam = null;
+if (!empty($_GET['team'])) {
+    $filterTeamId = \App\Services\IdEncoder::decode($_GET['team']);
+    if ($filterTeamId) {
+        $filterTeam = $eventController->getTeamById((int)$filterTeamId);
+        if (!$filterTeam) {
+            $filterTeamId = null;
+        }
+    } else {
+        $filterTeamId = null;
+    }
+}
+
+$eventData = $eventController->getEvents($page, $perPage, $userId, $filterTeamId);
 $events = $eventData['events'];
 $totalPages = $eventData['totalPages'];
 $total = $eventData['total'];
-$canCreateEvent = !empty($eventController->getUserManagedTeams($_SESSION['user']['id']));
+$canCreateEvent = !empty($eventController->getUserManagedTeams($userId));
+
+$queryBase = $filterTeamId
+    ? '?team=' . urlencode(\App\Services\IdEncoder::encode($filterTeamId)) . '&'
+    : '?';
+
+if ($filterTeam) {
+    $title = 'Events — ' . $filterTeam['name'] . ' - Team Competition';
+}
 
 ob_start();
 ?>
@@ -42,7 +63,18 @@ ob_start();
     <?php endif; ?>
 
     <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold">Events</h1>
+        <div>
+            <h1 class="text-3xl font-bold">
+                <?php if ($filterTeam): ?>
+                    Events — <?= htmlspecialchars($filterTeam['name']) ?>
+                <?php else: ?>
+                    Events
+                <?php endif; ?>
+            </h1>
+            <?php if ($filterTeam): ?>
+                <a href="/event" class="link link-hover text-sm">← All events</a>
+            <?php endif; ?>
+        </div>
         <?php if ($canCreateEvent): ?>
             <a href="/event/create" class="btn btn-primary">Create Event</a>
         <?php endif; ?>
@@ -53,9 +85,13 @@ ob_start();
             <div class="card-body text-center py-16">
                 <h2 class="text-2xl font-bold mb-4">No events yet</h2>
                 <p class="text-base-content/70 mb-6">
-                    <?= $canCreateEvent ? 'Create your first event to get started' : 'No events are visible to you yet' ?>
+                    <?php if ($filterTeam): ?>
+                        No visible events for this team
+                    <?php else: ?>
+                        <?= $canCreateEvent ? 'Create your first event to get started' : 'No events are visible to you yet' ?>
+                    <?php endif; ?>
                 </p>
-                <?php if ($canCreateEvent): ?>
+                <?php if ($canCreateEvent && !$filterTeam): ?>
                     <a href="/event/create" class="btn btn-primary">Create Event</a>
                 <?php endif; ?>
             </div>
@@ -76,6 +112,15 @@ ob_start();
                                         <?= htmlspecialchars($event['title']) ?>
                                     </a>
                                 </h2>
+
+                                <?php if (!empty($event['team_id']) && !empty($event['team_name'])): ?>
+                                    <div class="mb-2">
+                                        <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($event['team_id'])) ?>"
+                                           class="badge badge-primary badge-outline link link-hover">
+                                            <?= htmlspecialchars($event['team_name']) ?>
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                                 
                                 <?php if (!empty($event['location'])): ?>
                                     <div class="flex items-center gap-2 text-sm text-base-content/70 mb-2">
@@ -91,7 +136,6 @@ ob_start();
                                     <p class="text-base-content/80 mb-4"><?= htmlspecialchars(substr($event['description'], 0, 200)) ?><?= strlen($event['description']) > 200 ? '...' : '' ?></p>
                                 <?php endif; ?>
                                 
-                                <!-- Event Dates -->
                                 <?php if (!empty($event['dates'])): ?>
                                     <div class="flex flex-wrap gap-2 mb-3">
                                         <?php foreach (array_slice($event['dates'], 0, 3) as $date): ?>
@@ -106,7 +150,6 @@ ob_start();
                                     </div>
                                 <?php endif; ?>
                                 
-                                <!-- Event Tags -->
                                 <?php if (!empty($event['tags'])): ?>
                                     <div class="flex flex-wrap gap-2 mb-3">
                                         <?php foreach ($event['tags'] as $tag): ?>
@@ -150,27 +193,25 @@ ob_start();
             <?php endforeach; ?>
         </div>
 
-        <!-- Pagination -->
         <?php if ($totalPages > 1): ?>
             <div class="flex justify-center mt-8">
                 <div class="join">
                     <?php if ($page > 1): ?>
-                        <a href="?page=<?= $page - 1 ?>" class="join-item btn btn-sm">«</a>
+                        <a href="<?= $queryBase ?>page=<?= $page - 1 ?>" class="join-item btn btn-sm">«</a>
                     <?php endif; ?>
                     
                     <?php
                     $startPage = max(1, $page - 2);
                     $endPage = min($totalPages, $page + 2);
-                    
                     for ($i = $startPage; $i <= $endPage; $i++):
                     ?>
-                        <a href="?page=<?= $i ?>" class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
+                        <a href="<?= $queryBase ?>page=<?= $i ?>" class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
                             <?= $i ?>
                         </a>
                     <?php endfor; ?>
                     
                     <?php if ($page < $totalPages): ?>
-                        <a href="?page=<?= $page + 1 ?>" class="join-item btn btn-sm">»</a>
+                        <a href="<?= $queryBase ?>page=<?= $page + 1 ?>" class="join-item btn btn-sm">»</a>
                     <?php endif; ?>
                 </div>
             </div>
