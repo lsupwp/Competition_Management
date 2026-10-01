@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Services\Database;
 use App\Services\EmailService;
 use App\Services\ActivityLogService;
+use App\Services\ImageUploadService;
 
 class TeamController
 {
@@ -33,13 +34,20 @@ class TeamController
         $token = bin2hex(random_bytes(32));
         $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days')); // 7 days expiry
 
-        // Insert invitation
-        $stmt = $this->db->prepare("
-            INSERT INTO team_invitations (team_id, invited_by, token, email, role, expires_at)
-            VALUES (?, ?, ?, ?, 'member', ?)
-        ");
-        $role = 'member'; // Tokens always invite as member
-        $stmt->bind_param('iisss', $teamId, $userId, $token, $email, $expiresAt);
+        // Insert invitation (email is NULL for reusable invite tokens)
+        if ($email === null) {
+            $stmt = $this->db->prepare("
+                INSERT INTO team_invitations (team_id, invited_by, token, email, role, expires_at)
+                VALUES (?, ?, ?, NULL, 'member', ?)
+            ");
+            $stmt->bind_param('iiss', $teamId, $userId, $token, $expiresAt);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO team_invitations (team_id, invited_by, token, email, role, expires_at)
+                VALUES (?, ?, ?, ?, 'member', ?)
+            ");
+            $stmt->bind_param('iisss', $teamId, $userId, $token, $email, $expiresAt);
+        }
         
         if (!$stmt->execute()) {
             return ['success' => false, 'error' => 'Failed to create invitation'];
@@ -138,8 +146,9 @@ class TeamController
             INSERT INTO team_members (team_id, user_id, role)
             VALUES (?, ?, ?)
         ");
+        $inviteTeamId = (int)$invitation['team_id'];
         $role = $invitation['role'];
-        $stmt->bind_param('iis', $invitation['team_id'], $userId, $role);
+        $stmt->bind_param('iis', $inviteTeamId, $userId, $role);
         
         if (!$stmt->execute()) {
             return ['success' => false, 'error' => 'Failed to join team'];
@@ -279,7 +288,7 @@ class TeamController
     /**
      * Get team member count
      */
-    private function getTeamMemberCount(int $teamId): int
+    public function getTeamMemberCount(int $teamId): int
     {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as count FROM team_members
@@ -383,45 +392,40 @@ class TeamController
 
         // Handle logo upload
         $logoUrl = null;
-        if (isset($files['logo']) && $files['logo']['error'] === UPLOAD_ERR_OK) {
-            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $maxSize = 2 * 1024 * 1024;
-            
-            $fileType = $files['logo']['type'];
-            $fileSize = $files['logo']['size'];
-            
-            if (!in_array($fileType, $allowedTypes)) {
-                return ['success' => false, 'error' => 'Invalid logo type. Only JPG, PNG, GIF, and WebP are allowed.'];
+        if (isset($files['logo']) && (int)($files['logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $stored = ImageUploadService::store(
+                $files['logo'],
+                __DIR__ . '/../../uploads/teams',
+                'team'
+            );
+            if (!$stored['success']) {
+                return ['success' => false, 'error' => $stored['error']];
             }
-            if ($fileSize > $maxSize) {
-                return ['success' => false, 'error' => 'Logo must be less than 2MB.'];
-            }
-            
-            $extension = pathinfo($files['logo']['name'], PATHINFO_EXTENSION);
-            $filename = 'team_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
-            $uploadPath = __DIR__ . '/../../uploads/teams/' . $filename;
-            
-            if (!move_uploaded_file($files['logo']['tmp_name'], $uploadPath)) {
-                return ['success' => false, 'error' => 'Failed to upload logo.'];
-            }
-            
-            $logoUrl = '/uploads/teams/' . $filename;
+            $logoUrl = '/uploads/teams/' . $stored['filename'];
             $this->activityLog->log(
                 'file.upload',
-                "Uploaded team logo '$filename'",
+                "Uploaded team logo '{$stored['filename']}'",
                 $userId,
                 'team',
                 null,
-                ['filename' => $filename, 'mime' => $fileType, 'size' => $fileSize, 'path' => $logoUrl]
+                ['filename' => $stored['filename'], 'mime' => $stored['mime'], 'size' => $stored['size'], 'path' => $logoUrl]
             );
         }
 
-        // Insert team
-        $stmt = $this->db->prepare("
-            INSERT INTO teams (owner_id, name, description, logo_url, max_members)
-            VALUES (?, ?, ?, ?, ?)
-        ");
-        $stmt->bind_param('isssi', $userId, $name, $description, $logoUrl, $maxMembers);
+        // Insert team (logo_url may be NULL)
+        if ($logoUrl === null) {
+            $stmt = $this->db->prepare("
+                INSERT INTO teams (owner_id, name, description, logo_url, max_members)
+                VALUES (?, ?, ?, NULL, ?)
+            ");
+            $stmt->bind_param('issi', $userId, $name, $description, $maxMembers);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO teams (owner_id, name, description, logo_url, max_members)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $stmt->bind_param('isssi', $userId, $name, $description, $logoUrl, $maxMembers);
+        }
         
         if (!$stmt->execute()) {
             return ['success' => false, 'error' => 'Failed to create team'];
@@ -598,36 +602,23 @@ class TeamController
 
         // Handle logo upload
         $logoUrl = null;
-        if (isset($files['logo']) && $files['logo']['error'] === UPLOAD_ERR_OK) {
-            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $maxSize = 2 * 1024 * 1024;
-            
-            $fileType = $files['logo']['type'];
-            $fileSize = $files['logo']['size'];
-            
-            if (!in_array($fileType, $allowedTypes)) {
-                return ['success' => false, 'error' => 'Invalid logo type. Only JPG, PNG, GIF, and WebP are allowed.'];
+        if (isset($files['logo']) && (int)($files['logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $stored = ImageUploadService::store(
+                $files['logo'],
+                __DIR__ . '/../../uploads/teams',
+                'team'
+            );
+            if (!$stored['success']) {
+                return ['success' => false, 'error' => $stored['error']];
             }
-            if ($fileSize > $maxSize) {
-                return ['success' => false, 'error' => 'Logo must be less than 2MB.'];
-            }
-            
-            $extension = pathinfo($files['logo']['name'], PATHINFO_EXTENSION);
-            $filename = 'team_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
-            $uploadPath = __DIR__ . '/../../uploads/teams/' . $filename;
-            
-            if (!move_uploaded_file($files['logo']['tmp_name'], $uploadPath)) {
-                return ['success' => false, 'error' => 'Failed to upload logo.'];
-            }
-            
-            $logoUrl = '/uploads/teams/' . $filename;
+            $logoUrl = '/uploads/teams/' . $stored['filename'];
             $this->activityLog->log(
                 'file.upload',
-                "Uploaded team logo '$filename'",
+                "Uploaded team logo '{$stored['filename']}'",
                 $userId,
                 'team',
                 $teamId,
-                ['filename' => $filename, 'mime' => $fileType, 'size' => $fileSize, 'path' => $logoUrl]
+                ['filename' => $stored['filename'], 'mime' => $stored['mime'], 'size' => $stored['size'], 'path' => $logoUrl]
             );
         }
 
@@ -638,14 +629,14 @@ class TeamController
                 SET name = ?, description = ?, logo_url = ?, max_members = ?
                 WHERE id = ?
             ");
-            $stmt->bind_param('ssssi', $name, $description, $logoUrl, $maxMembers, $teamId);
+            $stmt->bind_param('sssii', $name, $description, $logoUrl, $maxMembers, $teamId);
         } else {
             $stmt = $this->db->prepare("
                 UPDATE teams 
                 SET name = ?, description = ?, max_members = ?
                 WHERE id = ?
             ");
-            $stmt->bind_param('ssi', $name, $description, $maxMembers, $teamId);
+            $stmt->bind_param('ssii', $name, $description, $maxMembers, $teamId);
         }
         
         if (!$stmt->execute()) {

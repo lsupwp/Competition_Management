@@ -144,8 +144,9 @@ if ($selectedTeamId) {
         // Member search
         $memberSearch = isset($_GET['member_search']) ? trim($_GET['member_search']) : '';
         $members = $teamController->getTeamMembers($selectedTeamId, $memberSearch);
-        $selectedTeam['member_count'] = count($members);
+        $selectedTeam['member_count'] = $teamController->getTeamMemberCount($selectedTeamId);
         $selectedTeam['members'] = $members;
+        $selectedTeam['member_search_count'] = count($members);
     }
 }
 
@@ -265,7 +266,14 @@ ob_start();
                 <div class="divider"></div>
 
                 <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-4">
-                    <h3 class="font-bold text-lg">Members</h3>
+                    <h3 class="font-bold text-lg">
+                        Members
+                        <?php if ($memberSearch): ?>
+                            <span class="font-normal text-sm text-base-content/60">
+                                (showing <?= (int)$selectedTeam['member_search_count'] ?> of <?= (int)$selectedTeam['member_count'] ?>)
+                            </span>
+                        <?php endif; ?>
+                    </h3>
                     <form method="GET" class="flex flex-wrap gap-2 w-full sm:w-auto">
                         <input type="hidden" name="id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                         <input type="text" name="member_search" value="<?= htmlspecialchars($memberSearch) ?>" 
