@@ -772,9 +772,9 @@ class TeamController
             return ['success' => false, 'error' => 'Only team owner can change roles'];
         }
 
-        // Validate role
-        if (!in_array($newRole, ['owner', 'admin', 'member'])) {
-            return ['success' => false, 'error' => 'Invalid role'];
+        // Validate role (ownership uses Transfer Ownership)
+        if (!in_array($newRole, ['admin', 'member'], true)) {
+            return ['success' => false, 'error' => 'Invalid role. Use Transfer Ownership to change the owner'];
         }
 
         // Check if target is member
@@ -789,6 +789,11 @@ class TeamController
             return ['success' => false, 'error' => 'Cannot change your own role'];
         }
 
+        // Cannot change current owner's role here
+        if ($targetRole === 'owner') {
+            return ['success' => false, 'error' => 'Use Transfer Ownership to change the owner'];
+        }
+
         // Update role
         $stmt = $this->db->prepare("
             UPDATE team_members 
@@ -801,28 +806,6 @@ class TeamController
             return ['success' => false, 'error' => 'Failed to change role'];
         }
         $stmt->close();
-
-        // If changing to owner, demote current owner to admin
-        if ($newRole === 'owner') {
-            $stmt = $this->db->prepare("
-                UPDATE team_members 
-                SET role = 'admin' 
-                WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
-            ");
-            $stmt->bind_param('ii', $teamId, $userId);
-            $stmt->execute();
-            $stmt->close();
-
-            // Update team owner_id
-            $stmt = $this->db->prepare("
-                UPDATE teams 
-                SET owner_id = ? 
-                WHERE id = ?
-            ");
-            $stmt->bind_param('ii', $targetUserId, $teamId);
-            $stmt->execute();
-            $stmt->close();
-        }
 
         // Log activity
         $teamName = $this->getTeamName($teamId);

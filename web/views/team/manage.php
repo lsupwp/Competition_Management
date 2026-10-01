@@ -318,7 +318,6 @@ ob_start();
                                                 <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                                                 <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
                                                 <select name="new_role" class="select select-bordered select-sm" onchange="this.form.submit()">
-                                                    <option value="owner" <?= $member['role'] === 'owner' ? 'selected' : '' ?>>Owner</option>
                                                     <option value="admin" <?= $member['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
                                                     <option value="member" <?= $member['role'] === 'member' ? 'selected' : '' ?>>Member</option>
                                                 </select>
