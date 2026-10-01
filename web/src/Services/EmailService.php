@@ -35,7 +35,7 @@ class EmailService
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail, $toName);
 
-            $verificationUrl = rtrim($_ENV['APP_URL'], '/') . '/auth/verify?token=' . urlencode($token);
+            $verificationUrl = rtrim(Env::getOrFail('APP_URL'), '/') . '/auth/verify?token=' . urlencode($token);
 
             $this->mail->isHTML(true);
             $this->mail->Subject = 'Verify Your Email - Team Competition';
@@ -89,7 +89,7 @@ class EmailService
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail);
 
-            $inviteUrl = rtrim($_ENV['APP_URL'], '/') . '/team/join?token=' . urlencode($token);
+            $inviteUrl = rtrim(Env::getOrFail('APP_URL'), '/') . '/team/join?token=' . urlencode($token);
 
             $this->mail->isHTML(true);
             $this->mail->Subject = "You're invited to join $teamName";

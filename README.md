@@ -275,10 +275,10 @@ include_once __DIR__ . '/../templates/layout.php';
 |----------|-------------|---------|
 | `APP_NAME` | Application name | team_comp_app |
 | `APP_PORT` | Web port | 8000 |
-| `APP_URL` | Public app URL | http://localhost:8000 |
+| `APP_URL` | Public app URL (set to your ngrok HTTPS URL when tunneling) | http://localhost:8000 |
 | `APP_TIMEZONE` | App/DB timezone | Asia/Bangkok |
 | `APP_KEY` | Encryption key for IDs | (auto-generated) |
-| `DB_HOST` | Database host | mariadb |
+| `DB_HOST` | Database host — keep `mariadb` with Docker (ngrok tunnels HTTP only) | mariadb |
 | `DB_PORT` | Database port | 3306 |
 | `DB_DATABASE` | Database name | team_competition |
 | `DB_USERNAME` | Database user | app_user |

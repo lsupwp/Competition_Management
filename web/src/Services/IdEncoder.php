@@ -12,7 +12,8 @@ class IdEncoder
     private static function init(): void
     {
         if (self::$key === null) {
-            self::$key = $_ENV['APP_KEY'] ?? 'default-secret-key-change-in-production';
+            self::$key = Env::get('APP_KEY', 'default-secret-key-change-in-production')
+                ?? 'default-secret-key-change-in-production';
         }
     }
     
