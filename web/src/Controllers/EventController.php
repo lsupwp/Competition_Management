@@ -329,6 +329,11 @@ class EventController
             return ['success' => false, 'error' => 'Required members must be between 1 and 100'];
         }
 
+        $dateValidationError = $this->validateEventDates($data['dates'] ?? null);
+        if ($dateValidationError !== null) {
+            return ['success' => false, 'error' => $dateValidationError];
+        }
+
         // Start transaction
         $this->db->begin_transaction();
 
@@ -374,8 +379,11 @@ class EventController
                         INSERT INTO event_dates (event_id, date_type, start_datetime, end_datetime, description)
                         VALUES (?, ?, ?, ?, ?)
                     ");
+                    $dateType = $date['date_type'];
+                    $startDatetime = $date['start_datetime'];
+                    $endDatetime = $date['end_datetime'];
                     $dateDescription = $date['description'] ?? '';
-                    $stmt->bind_param('issss', $eventId, $date['date_type'], $date['start_datetime'], $date['end_datetime'], $dateDescription);
+                    $stmt->bind_param('issss', $eventId, $dateType, $startDatetime, $endDatetime, $dateDescription);
                     $stmt->execute();
                     $stmt->close();
                 }
@@ -392,8 +400,9 @@ class EventController
                         INSERT INTO event_tags (event_id, name, color)
                         VALUES (?, ?, ?)
                     ");
+                    $tagName = $tag['name'];
                     $color = $tag['color'] ?? '#3b82f6';
-                    $stmt->bind_param('iss', $eventId, $tag['name'], $color);
+                    $stmt->bind_param('iss', $eventId, $tagName, $color);
                     $stmt->execute();
                     $stmt->close();
                 }
@@ -473,6 +482,11 @@ class EventController
             return ['success' => false, 'error' => "Required members cannot be below registered count ({$registeredCount})"];
         }
 
+        $dateValidationError = $this->validateEventDates($data['dates'] ?? null);
+        if ($dateValidationError !== null) {
+            return ['success' => false, 'error' => $dateValidationError];
+        }
+
         $this->db->begin_transaction();
 
         try {
@@ -520,8 +534,11 @@ class EventController
                         INSERT INTO event_dates (event_id, date_type, start_datetime, end_datetime, description)
                         VALUES (?, ?, ?, ?, ?)
                     ");
+                    $dateType = $date['date_type'];
+                    $startDatetime = $date['start_datetime'];
+                    $endDatetime = $date['end_datetime'];
                     $dateDescription = $date['description'] ?? '';
-                    $stmt->bind_param('issss', $eventId, $date['date_type'], $date['start_datetime'], $date['end_datetime'], $dateDescription);
+                    $stmt->bind_param('issss', $eventId, $dateType, $startDatetime, $endDatetime, $dateDescription);
                     $stmt->execute();
                     $stmt->close();
                 }
@@ -536,8 +553,9 @@ class EventController
                         INSERT INTO event_tags (event_id, name, color)
                         VALUES (?, ?, ?)
                     ");
+                    $tagName = $tag['name'];
                     $color = $tag['color'] ?? '#3b82f6';
-                    $stmt->bind_param('iss', $eventId, $tag['name'], $color);
+                    $stmt->bind_param('iss', $eventId, $tagName, $color);
                     $stmt->execute();
                     $stmt->close();
                 }
@@ -889,12 +907,20 @@ class EventController
             }
         }
 
-        // Insert registration
-        $stmt = $this->db->prepare("
-            INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
-            VALUES (?, ?, ?, 'confirmed', NOW())
-        ");
-        $stmt->bind_param('iii', $eventId, $userId, $teamId);
+        // Insert registration (team_id may be NULL for individual registration)
+        if ($teamId === null) {
+            $stmt = $this->db->prepare("
+                INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
+                VALUES (?, ?, NULL, 'confirmed', NOW())
+            ");
+            $stmt->bind_param('ii', $eventId, $userId);
+        } else {
+            $stmt = $this->db->prepare("
+                INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
+                VALUES (?, ?, ?, 'confirmed', NOW())
+            ");
+            $stmt->bind_param('iii', $eventId, $userId, $teamId);
+        }
         
         if (!$stmt->execute()) {
             $stmt->close();
@@ -1166,5 +1192,40 @@ class EventController
         $isRegistered = $result->num_rows > 0;
         $stmt->close();
         return $isRegistered;
+    }
+
+    /**
+     * Ensure every provided date range has end after start.
+     */
+    private function validateEventDates($dates): ?string
+    {
+        if ($dates === null || $dates === '') {
+            return null;
+        }
+        if (!is_array($dates)) {
+            return 'Invalid date ranges';
+        }
+
+        foreach ($dates as $index => $date) {
+            if (!is_array($date)) {
+                continue;
+            }
+            $start = trim((string)($date['start_datetime'] ?? ''));
+            $end = trim((string)($date['end_datetime'] ?? ''));
+            if ($start === '' || $end === '') {
+                continue;
+            }
+
+            $startTs = strtotime($start);
+            $endTs = strtotime($end);
+            if ($startTs === false || $endTs === false) {
+                return 'Invalid date/time format in schedule #' . ((int)$index + 1);
+            }
+            if ($endTs <= $startTs) {
+                return 'End time must be after start time for every schedule';
+            }
+        }
+
+        return null;
     }
 }
