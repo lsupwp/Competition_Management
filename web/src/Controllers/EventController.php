@@ -354,4 +354,112 @@ class EventController
 
         return $registrations;
     }
+
+    /**
+     * Register user for event
+     */
+    public function registerForEvent(int $eventId, int $userId, ?int $teamId = null): array
+    {
+        // Check if event exists
+        $event = $this->getEventById($eventId);
+        if (!$event) {
+            return ['success' => false, 'error' => 'Event not found'];
+        }
+
+        // Check if user can see this event (visibility check)
+        if (!$this->canUserSeeEvent($eventId, $userId)) {
+            return ['success' => false, 'error' => 'You do not have permission to register for this event'];
+        }
+
+        // Check if already registered
+        if ($this->isUserRegistered($eventId, $userId)) {
+            return ['success' => false, 'error' => 'You are already registered for this event'];
+        }
+
+        // If team registration, check if user is member of team
+        if ($teamId && !$this->isUserTeamMember($teamId, $userId)) {
+            return ['success' => false, 'error' => 'You are not a member of this team'];
+        }
+
+        // Insert registration
+        $stmt = $this->db->prepare("
+            INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
+            VALUES (?, ?, ?, 'confirmed', NOW())
+        ");
+        $stmt->bind_param('iii', $eventId, $userId, $teamId);
+        
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return ['success' => false, 'error' => 'Failed to register for event'];
+        }
+        
+        $registrationId = $this->db->insert_id;
+        $stmt->close();
+
+        // Log activity
+        $this->activityLog->log(
+            'event.register',
+            "Registered for event '{$event['title']}'",
+            $userId,
+            'event',
+            $eventId,
+            ['registration_id' => $registrationId, 'team_id' => $teamId]
+        );
+
+        return [
+            'success' => true,
+            'registration_id' => $registrationId,
+            'message' => 'Successfully registered for event'
+        ];
+    }
+
+    /**
+     * Check if user can see event
+     */
+    private function canUserSeeEvent(int $eventId, int $userId): bool
+    {
+        // Check if user is event creator
+        $stmt = $this->db->prepare("
+            SELECT id FROM events
+            WHERE id = ? AND created_by = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ii', $eventId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            $stmt->close();
+            return true;
+        }
+        $stmt->close();
+
+        // Check if user has visibility permission
+        $stmt = $this->db->prepare("
+            SELECT id FROM event_visibility
+            WHERE event_id = ? AND user_id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ii', $eventId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $hasPermission = $result->num_rows > 0;
+        $stmt->close();
+
+        return $hasPermission;
+    }
+
+    /**
+     * Check if user is already registered for event
+     */
+    private function isUserRegistered(int $eventId, int $userId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT id FROM event_registrations
+            WHERE event_id = ? AND user_id = ? AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ii', $eventId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $isRegistered = $result->num_rows > 0;
+        $stmt->close();
+        return $isRegistered;
+    }
 }
