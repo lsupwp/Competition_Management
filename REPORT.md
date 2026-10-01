@@ -9,8 +9,9 @@
 | Auth retest | 2026-10-01 (post-remediation deploy) |
 | Response verify | 2026-10-01 (AUTH-10/11, SEC-07) |
 | AUTH-11 GET polish | 2026-10-01 — verified invalid tokens no longer show form |
+| Settings form audit | 2026-10-01 |
 | Audience | Development / engineering |
-| Method | Authenticated black-box review; auth-focused retest after `RESPONSE.md` fixes |
+| Method | Authenticated black-box review; auth + `/settings` form review |
 
 ---
 
@@ -18,14 +19,16 @@
 
 **Post-fix (verified live):** SEC-01, SEC-03–SEC-06, SEC-07 (banner), SEC-09 (per eng), AUTH-10, and AUTH-11 are **confirmed fixed** on the current tunnel. CSRF, session rotation, rate limit, and password policy remain in good shape.
 
-**Remaining:**
+**Open / remaining:**
 
 | Priority | Item |
 |----------|------|
-| Accepted risk | **SEC-02** — Eng accepted shared demo/admin creds on public ngrok (still work; won't fix) |
+| Medium | **SET-05** — Stored HTML/JS injection via profile **name** in Settings input `value` (attribute breakout) |
+| Low | **SET-06** — Avatar upload fails to save (valid PNG → “Failed to save uploaded file”) |
+| Accepted risk | **SEC-02** — Demo/admin creds on public ngrok (won't fix) |
 | Low (backlog) | **SEC-08** — Sequential opaque IDs (deferred) |
 
-No login CSRF bypass, session fixation, or protected-route auth bypass found on the current build.
+Settings forms otherwise look solid: CSRF enforced, email/password changes require current password, password policy applied on change, unauth access blocked.
 
 ---
 
@@ -55,6 +58,8 @@ No login CSRF bypass, session fixation, or protected-route auth bypass found on 
 | SEC-09 | Low | **Fixed** | Login timing skew |
 | AUTH-10 | Low | **Fixed** | Logout via GET enables logout CSRF |
 | AUTH-11 | Medium | **Fixed** | Password reset completion route not found (404) |
+| SET-05 | Medium | **Open** | Stored XSS / HTML injection in Settings name `value` |
+| SET-06 | Low | **Open** | Avatar upload save failure (functional) |
 
 ---
 
@@ -179,6 +184,74 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 ---
 
+## 5b. Settings form audit (2026-10-01)
+
+### Forms mapped on `/settings`
+
+| Form | Fields | Notes |
+|------|--------|-------|
+| Edit profile | `action=edit_profile`, `csrf_token`, `avatar`, `name` | `multipart/form-data` |
+| Change email | `action=change_email`, `csrf_token`, `new_email`, `email_password` | Password required |
+| Change password | `action=change_password`, `csrf_token`, `current_password`, `new_password`, `confirm_password` | Policy enforced |
+
+### Controls that passed
+
+| Check | Result |
+|-------|--------|
+| Unauthenticated GET/POST `/settings` | Redirects to login |
+| CSRF on profile / email / password | Wrong or missing token → “Invalid security token” |
+| Email change without password | “Invalid password” |
+| Email change wrong password | Rejected |
+| Password change without current | “Current and new password are required” |
+| Weak new password | “Password must be at least 12 characters long” |
+| Password mismatch / wrong current | Rejected with clear errors |
+| Name length | “Name must not exceed 255 characters” |
+| Display name on homepage | HTML-escaped correctly |
+| Extra params (`user_id`, `role`, `is_admin`) | No privilege escalation to `/activity` |
+| Avatar SVG / PHP / fake PNG | Rejected as invalid type |
+
+### SET-05 — Medium — Stored HTML/JS injection in Settings name field — **OPEN**
+
+**Component:** `/settings` → Edit Profile → `name`  
+
+**Description**  
+Display contexts (e.g. navbar `<span class="text-sm font-bold">…</span>`) escape the name correctly.  
+The **Settings input** does **not** encode quotes when echoing into `value="…"`:
+
+```html
+<input ... value=""><b data-set="xss">SETTAG</b>" required />
+```
+
+A stored name containing `"` breaks out of the attribute and injects HTML into the Settings page for that user.
+
+**Impact**  
+Script/HTML runs in the victim’s session when they open **Account Settings**. With CSRF already fixed, this is primarily **self-XSS** / social-engineering, but still a real encoding bug and becomes worse if any admin “edit user” UI reuses the same pattern.
+
+**Recommendation**  
+- Escape for HTML attribute context (`htmlspecialchars($name, ENT_QUOTES, 'UTF-8')`) everywhere `name` is printed into attributes.  
+- Prefer the same helper for all template outputs.  
+- Add a regression test: name containing `"` / `<` must not break markup.
+
+**Acceptance criteria**  
+After saving a name with quotes/angle brackets, Settings source shows only escaped entities inside `value="…"`, and no raw injected tags.
+
+---
+
+### SET-06 — Low — Avatar upload fails to persist — **OPEN**
+
+**Component:** `/settings` avatar  
+
+**Description**  
+A minimal valid 1×1 PNG upload returned “Failed to save uploaded file.” while name update still succeeded. Existing avatar URL under `/uploads/avatars/…` returned 404/`text/html` in this environment.
+
+**Impact**  
+Broken profile photo feature; may indicate permissions/disk path issues in Docker/ngrok deploy (not a confirmed RCE).
+
+**Recommendation**  
+Check upload directory permissions, path config, and disk space; confirm served files use correct `Content-Type` and `X-Content-Type-Options: nosniff`.
+
+---
+
 ## 6. Positive auth controls (do not regress)
 
 | Area | Observation |
@@ -208,8 +281,10 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 ## 8. Recommended backlog order (updated)
 
-1. **SEC-08** — UUID/ULID when touching ID layer (optional)  
-2. **SEC-02** — If this ever leaves course/demo context, rotate creds and lock the tunnel
+1. **SET-05** — Escape profile name in Settings input `value` (and any other attributes)  
+2. **SET-06** — Fix avatar save path/permissions  
+3. **SEC-08** — UUID/ULID when touching ID layer (optional)  
+4. **SEC-02** — If leaving course/demo context, rotate creds and lock the tunnel
 
 ---
 
@@ -227,12 +302,14 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 - [x] AUTH-10 CSRF-safe logout *(verified live)*  
 - [x] AUTH-11 Password reset completion route *(verified live; email body not read)*  
 - [x] AUTH-11 GET token validation *(verified live — invalid tokens hide form)*  
+- [ ] SET-05 Escape `name` in Settings attribute context  
+- [ ] SET-06 Avatar upload save path/permissions  
 
 ---
 
 ## 10. Cleanup after reviews
 
-Disposable registrations used `*@example.com` addresses during policy/enum tests. Remove those users if you want a clean DB.
+Disposable registrations used `*@example.com` addresses during policy/enum tests. Remove those users if you want a clean DB. Profile name used for XSS markers was restored to `Nanthaphat` after testing.
 
 ---
 
@@ -241,9 +318,9 @@ Disposable registrations used `*@example.com` addresses during policy/enum tests
 - Black-box against live ngrok; no application source in the tester workspace.  
 - Auth retest partially constrained by the new IP login lockout after confirming SEC-05.  
 - Password-reset **email contents** were not read (no mailbox access); AUTH-11 is based on HTTP route discovery + forgot-password UI behavior.  
-- Not a full penetration test of teams/events/uploads in this pass—auth was the focus.
+- Settings audit covered profile / email / password / avatar forms; team/event settings are separate.
 
 ---
 
 **Prepared for:** Development team  
-**Action requested:** Security code items closed aside from SEC-08 backlog and SEC-02 accepted demo risk.
+**Action requested:** Fix **SET-05** next; then SET-06. SEC-02 remains accepted demo risk; SEC-08 remains backlog.

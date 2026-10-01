@@ -6,13 +6,8 @@ if [ ! -d "vendor" ]; then
     composer install --no-interaction --optimize-autoloader
 fi
 
-# Create uploads directories if not exist and set permissions
-if [ ! -d "uploads/avatars" ]; then
-    mkdir -p uploads/avatars
-fi
-if [ ! -d "uploads/teams" ]; then
-    mkdir -p uploads/teams
-fi
+# Always ensure upload dirs exist and are writable by Apache (www-data)
+mkdir -p uploads/avatars uploads/teams
 chown -R www-data:www-data uploads
 chmod -R 775 uploads
 

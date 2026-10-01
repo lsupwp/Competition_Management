@@ -65,11 +65,20 @@ class ImageUploadService
             return ['success' => false, 'error' => 'Failed to prepare upload directory.'];
         }
 
+        if (!is_writable($destinationDir)) {
+            @chmod($destinationDir, 0775);
+        }
+        if (!is_writable($destinationDir)) {
+            error_log('ImageUploadService: directory not writable: ' . $destinationDir);
+            return ['success' => false, 'error' => 'Upload directory is not writable. Please contact the administrator.'];
+        }
+
         $extension = self::ALLOWED_MIMES[$detectedMime];
         $filename = $filenamePrefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
         $destination = rtrim($destinationDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
 
-        if (!move_uploaded_file($tmpPath, $destination)) {
+        if (!@move_uploaded_file($tmpPath, $destination)) {
+            error_log('ImageUploadService: move_uploaded_file failed to ' . $destination);
             return ['success' => false, 'error' => 'Failed to save uploaded file.'];
         }
 

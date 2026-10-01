@@ -2,24 +2,32 @@
 // Input component
 // Usage: include __DIR__ . '/input.php'; with $inputName, $inputLabel, $inputType
 // Optional: $inputTogglePassword = true (for password fields with eye icon)
+
+$inputNameAttr = htmlspecialchars((string)($inputName ?? 'input'), ENT_QUOTES, 'UTF-8');
+$inputLabelText = htmlspecialchars((string)($inputLabel ?? 'Label'), ENT_QUOTES, 'UTF-8');
+$inputTypeAttr = htmlspecialchars((string)($inputType ?? 'text'), ENT_QUOTES, 'UTF-8');
+$inputPlaceholderAttr = htmlspecialchars((string)($inputPlaceholder ?? ''), ENT_QUOTES, 'UTF-8');
+$inputValueAttr = isset($inputValue)
+    ? htmlspecialchars((string)$inputValue, ENT_QUOTES, 'UTF-8')
+    : null;
 ?>
 <div class="form-control flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full">
     <label class="label sm:w-32 flex-shrink-0 py-0 justify-start">
-        <span class="label-text"><?= $inputLabel ?? 'Label' ?></span>
+        <span class="label-text"><?= $inputLabelText ?></span>
     </label>
     <div class="flex-1 relative w-full min-w-0">
         <input
-            type="<?= $inputType ?? 'text' ?>"
-            name="<?= $inputName ?? 'input' ?>"
-            id="<?= $inputName ?? 'input' ?>"
-            placeholder="<?= $inputPlaceholder ?? '' ?>"
+            type="<?= $inputTypeAttr ?>"
+            name="<?= $inputNameAttr ?>"
+            id="<?= $inputNameAttr ?>"
+            placeholder="<?= $inputPlaceholderAttr ?>"
             class="input input-bordered w-full <?= isset($inputTogglePassword) && $inputTogglePassword ? 'pr-10' : '' ?>"
-            <?= isset($inputValue) && $inputType !== 'password' ? "value=\"{$inputValue}\"" : '' ?>
+            <?= $inputValueAttr !== null && $inputTypeAttr !== 'password' ? 'value="' . $inputValueAttr . '"' : '' ?>
             <?= isset($inputRequired) && $inputRequired ? 'required' : '' ?>
-            <?= $inputType === 'password' ? 'autocomplete="current-password"' : '' ?>
+            <?= $inputTypeAttr === 'password' ? 'autocomplete="current-password"' : '' ?>
         />
         <?php if (isset($inputTogglePassword) && $inputTogglePassword): ?>
-        <button type="button" class="toggle-password absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs" data-target="<?= $inputName ?? 'input' ?>">
+        <button type="button" class="toggle-password absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs" data-target="<?= $inputNameAttr ?>">
             <svg xmlns="http://www.w3.org/2000/svg" class="eye-open h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
