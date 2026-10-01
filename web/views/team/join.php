@@ -58,7 +58,7 @@ if ($token) {
         } else {
             $teamInfo = [
                 'name' => $invitation['team_name'],
-                'logo_url' => $invitation['logo_url'],
+                'logo_url' => \App\Services\UploadUrl::existing($invitation['logo_url'] ?? null),
                 'role' => $invitation['role']
             ];
         }

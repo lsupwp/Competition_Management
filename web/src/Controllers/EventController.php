@@ -284,6 +284,7 @@ class EventController
         $result = $stmt->get_result();
         $teams = [];
         while ($row = $result->fetch_assoc()) {
+            $row['logo_url'] = \App\Services\UploadUrl::existing($row['logo_url'] ?? null);
             $teams[] = $row;
         }
         $stmt->close();
