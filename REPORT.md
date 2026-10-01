@@ -11,6 +11,11 @@
 | AUTH-11 GET polish | 2026-10-01 — verified invalid tokens no longer show form |
 | Settings form audit | 2026-10-01 |
 | SET-05 / SET-06 verify | 2026-10-01 — both fixed on live |
+| Uploads nosniff | 2026-10-01 — verified on `/uploads/avatars/*` |
+| Team management audit | 2026-10-01 |
+| Event management audit | 2026-10-01 |
+| EVT-02 verify | 2026-10-01 — fixed on live |
+| Remaining paths audit | 2026-10-01 — `/terms`, `/activity`, `/team/settings`, `/team/invite`, `/api/team-members`, uploads |
 | Audience | Development / engineering |
 | Method | Authenticated black-box review; auth + `/settings` form review |
 
@@ -27,7 +32,9 @@
 | Accepted risk | **SEC-02** — Demo/admin creds on public ngrok (won't fix) |
 | Low (backlog) | **SEC-08** — Sequential opaque IDs (deferred) |
 
-**Settings (verified 2026-10-01):** SET-05 attribute encoding and SET-06 avatar upload are **fixed**. CSRF, password/email change gates, and upload type checks remain solid.
+**Settings / Teams / Events (verified):** SET-05/06 fixed; team management PASS; **EVT-02 fixed**.
+
+**Remaining paths (2026-10-01):** `/terms`, `/activity`, `/team/settings`, `/team/invite`, `/api/team-members`, `/uploads/teams/*` — **PASS** (no new High/Medium). See §5e.
 
 ---
 
@@ -59,6 +66,7 @@
 | AUTH-11 | Medium | **Fixed** | Password reset completion route not found (404) |
 | SET-05 | Medium | **Fixed** | Stored XSS / HTML injection in Settings name `value` |
 | SET-06 | Low | **Fixed** | Avatar upload save failure (functional) |
+| EVT-02 | Medium | **Fixed** | Team name disclosure via `/event?team=` / calendar for non-members |
 
 ---
 
@@ -223,6 +231,141 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 ---
 
+## 5c. Team management audit (2026-10-01)
+
+**Accounts:** `nanthaphat.ph@kkumail.com` (Owner on Hackthon + CTF), `lsupwp@gmail.com` (Admin on CTF only).
+
+### Surface
+
+| Route | Auth |
+|-------|------|
+| `/team/manage`, `/team/create`, `/team/join` | Login required (anon → `/auth/login`) |
+
+### Authorization / IDOR
+
+| Check | Result |
+|-------|--------|
+| u2 opens u1-only team `fnZdA2EIV2ZTAg` | No member emails / invite UI (fallback to own list) |
+| Shared team `fnZdA2EIV2ZTAQ` | Both see members (expected) |
+| u2 `transfer_ownership` | “Only team owner can transfer ownership” |
+| u2 `change_role` | “Only team owner can change roles” |
+| u2 `kick_member` (self/owner) | “Admins can only kick members” / blocked |
+| u2 `revoke_token` | “Permission denied” |
+| u2 invite/kick/transfer on private team | “Permission denied” / “not a member” / owner-only |
+
+### CSRF / XSS / invites
+
+| Check | Result |
+|-------|--------|
+| Create team wrong CSRF | “Invalid security token” |
+| Join wrong CSRF | “Invalid security token” |
+| Member search `"><img…onerror…>` | Escaped inside `value="&quot;&gt;&lt;img…"` |
+| Team name with HTML markers | Displayed as entities (`TM&quot;&gt;&lt;b…`) — no raw tags |
+| Invite tokens | 64-hex style; anon `/team/join?token=` → login |
+
+### Notes (not new vulns)
+
+| Note | Detail |
+|------|--------|
+| SEC-08 still applies | Team/user IDs share the same opaque encoder; e.g. user id for `lsupwp` matched team id `fnZdA2EIV2ZTAg` in forms. Authz checks still held. |
+| Test team leftover | A probe team named like `TM"><b…` may still exist (`fnZdA2EIV2ZTBw`) — safe to delete in UI if present. |
+| Team Settings UI | No separate settings/max_members form found on manage detail in this build (invite / roles / transfer / revoke only). |
+
+### Verdict
+
+**Team management: PASS** for this pass — no new open High/Medium findings. Remaining backlog unchanged: SEC-02 (accepted), SEC-08 (deferred).
+
+---
+
+## 5d. Event management audit (2026-10-01)
+
+**Accounts:** same two demo users. Shared event: `Panda Fight!` (`/event/view?id=fnZdA2EIV2ZTAQ`) on RedPanda CTF.
+
+### Surface / auth gate
+
+| Route | Result |
+|-------|--------|
+| `/event`, `/event/create`, `/event/calendar`, `/event/view`, `/event/edit` | Anon → login |
+| `/api/events-calendar` | Auth JSON feed (requires `start` & `end`) |
+
+### Authorization (passed)
+
+| Check | Result |
+|-------|--------|
+| Non-creator edit (GET/POST) | “Only the event creator can edit this event” |
+| Non-creator delete | “You do not have permission to delete this event” |
+| Create event on non-member team (`team_id=2` as u2) | “Only team owners and admins can create events” |
+| Encoded foreign `team_id` on create | “Team is required” / rejected |
+| View private-team event as non-member | Redirect / no access |
+| Calendar JSON as u2 | Only teams the user belongs to (e.g. RedPanda CTF) |
+| Unregister CSRF | Invalid token rejected |
+| Event title/description HTML | Escaped in list/view (`&quot;&gt;&lt;b…`, `&lt;img…`) |
+| Event search box | Escaped in `value` |
+
+### EVT-02 — Medium — Team name disclosure for non-members — **FIXED**
+
+**Verify (2026-10-01):** As non-member (`lsupwp@…`), `/event?team=` and `/event/calendar?team=` for Hackthon / admin teams show the generic Events/Calendar page — **no** foreign team name in title or H1. Member still sees `Events — RedPanda CTF` for their own team. `/api/events-calendar` does not apply unauthorized team filters to expose other teams’ events.
+
+### Notes
+
+| Note | Detail |
+|------|--------|
+| Event ids vs team ids | Some event view ids reuse the same encoder space as teams (e.g. shared event id equals shared team id) — reinforces SEC-08. |
+| Creator can remove others’ registration | Owner/creator UI posts `/event/unregister` with `user_id` — appears intentional moderation; confirm product intent. |
+| Calendar `team=` ignored when unauthorized | API returned the user’s normal visible events rather than erroring — OK if no foreign events leak; still fix HTML name leak (EVT-02). |
+
+### Verdict
+
+**Events: PASS** after EVT-02 fix (verified live).
+
+---
+
+## 5e. Remaining paths audit (2026-10-01)
+
+Paths taken from eng `RESPONSE.md` that were not fully covered in earlier auth/settings/team/event deep dives.
+
+### Matrix (summary)
+
+| Path | Anon | Normal user | Notes |
+|------|------|-------------|-------|
+| `/terms` | 200 public | 200 | Static policy text; no reflected XSS from query |
+| `/activity` | → login | → home + permission flash | **Admin only** (admin reaches `/activity`) |
+| `/team/settings` | → login | Owner only | Admin member denied; non-member denied |
+| `/team/invite` | → login | POST only useful | GET redirects manage; CSRF enforced; non-member invite denied |
+| `/api/events-calendar` | **401** JSON | 400 without dates / 200 with range | Membership filtering OK |
+| `/api/team-members` | 200 `Not authenticated` | Needs `team_id` (numeric) | Member OK; non-member `Access denied` |
+| `/uploads/avatars/`, `/uploads/teams/` | **403** listing | — | Individual files may 404 if missing; `nosniff` when served |
+| `/composer.json`, `/.env` | **403** | — | Still blocked |
+
+### Checks that passed
+
+| Check | Result |
+|-------|--------|
+| `/team/settings` as CTF Admin (u2) | No settings UI — permission message / redirect |
+| `/team/settings` as non-member of Hackthon | No access |
+| Team settings XSS in name `value` | Escaped (`TS&quot;&gt;&lt;b…`) |
+| Team settings wrong CSRF | Rejected / no update |
+| `/team/invite` as non-member of private team | Permission denied |
+| `/team/invite` bad CSRF | Invalid security token |
+| `/api/team-members?team_id=2` as u2 (not member) | `Access denied` (no emails) |
+| `/api/team-members?team_id=1` as u2 (member) | Members list (expected) |
+| Activity filters with junk / HTML | No raw tag reflection observed |
+| Admin-only `/activity` link | Not shown to normal users on home |
+
+### Notes (Low / Info — not opened as findings)
+
+| Note | Detail |
+|------|--------|
+| API auth status inconsistency | `/api/events-calendar` → **401** when anon; `/api/team-members` → **200** + `{"success":false,"error":"Not authenticated"}`. Prefer 401 for both. |
+| Numeric `team_id` on API | `/api/team-members` expects numeric ids (`1`,`2`,…) while UI urls use opaque ids — same SEC-08 theme; authz still enforced. |
+| Access-denied uniformity | Non-existent and non-member `team_id`s both return `Access denied` for u2 (no clear existence oracle in this sample). |
+
+### Verdict
+
+**Remaining listed paths: PASS** — no new High/Medium issues.
+
+---
+
 ## 6. Positive auth controls (do not regress)
 
 | Area | Observation |
@@ -254,7 +397,6 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 1. **SEC-08** — UUID/ULID when touching ID layer (optional)  
 2. **SEC-02** — If leaving course/demo context, rotate creds and lock the tunnel  
-3. Optional: add `X-Content-Type-Options: nosniff` on `/uploads/*` responses
 
 ---
 
@@ -274,6 +416,8 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 - [x] AUTH-11 GET token validation *(verified live — invalid tokens hide form)*  
 - [x] SET-05 Escape `name` in Settings attribute context *(verified live)*  
 - [x] SET-06 Avatar upload save path/permissions *(verified live)*  
+- [x] Uploads `X-Content-Type-Options: nosniff` *(verified live)*  
+- [x] EVT-02 Non-member team name disclosure on event/calendar team filter *(verified live)*  
 
 ---
 
@@ -293,4 +437,4 @@ Disposable registrations used `*@example.com` addresses during policy/enum tests
 ---
 
 **Prepared for:** Development team  
-**Action requested:** Auth + settings code items closed aside from SEC-08 backlog and SEC-02 accepted demo risk.
+**Action requested:** No new open code findings from remaining-path sweep. SEC-02 accepted; SEC-08 deferred. Optional: unify anon API status codes to 401.
