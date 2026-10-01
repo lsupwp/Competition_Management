@@ -54,6 +54,7 @@
 - แสดง event dates และ tags ในหน้ารายการ
 - หน้า `/event` แสดงรายชื่อทีมที่ user เป็นสมาชิกก่อน — คลิกทีมแล้วจึงแสดงรายการ event ของทีมนั้น (`/event?team=...`)
 - ในหน้ารายการ event ของทีม: ค้นหาชื่อ event, กรองตาม tag, กรองตามช่วงวันที่ (event dates)
+- **Event Calendar** (`/event/calendar`): มุมมองปฏิทินแบบ Google Calendar (FullCalendar) แสดง event dates ตามสิทธิ์การมองเห็น กรองตามทีมได้
 - Soft-deleted rows จะถูก hard-delete อัตโนมัติทุก 5 นาที (MariaDB EVENT)
 - Timezone: Asia/Bangkok (GMT+7)
 ### User Management
@@ -206,6 +207,8 @@ File-based routing - filename = URL path:
 | `web/views/team/settings.php` | `/team/settings` | Team settings |
 | `web/views/team/join.php` | `/team/join` | Join team |
 | `web/views/event/index.php` | `/event` | Team list; `?team=` shows that team's events |
+| `web/views/event/calendar.php` | `/event/calendar` | Calendar view (FullCalendar) |
+| `web/api/events-calendar.php` | `/api/events-calendar` | Calendar JSON feed |
 | `web/views/event/view.php` | `/event/view` | Event detail |
 | `web/views/event/create.php` | `/event/create` | Create event (owner/admin only) |
 | `web/views/event/edit.php` | `/event/edit` | Edit event (creator only) |

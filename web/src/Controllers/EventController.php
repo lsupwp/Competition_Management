@@ -689,6 +689,100 @@ class EventController
     }
 
     /**
+     * Calendar feed items for FullCalendar (one item per event_date)
+     */
+    public function getCalendarEvents(int $userId, string $rangeStart, string $rangeEnd, ?int $teamId = null): array
+    {
+        $teamSql = '';
+        if ($teamId !== null) {
+            $teamSql = ' AND e.team_id = ? ';
+        }
+
+        $sql = "
+            SELECT e.id AS event_id, e.title, e.team_id, t.name AS team_name,
+                   ed.id AS date_id, ed.date_type, ed.start_datetime, ed.end_datetime, ed.description AS date_description,
+                   (
+                       SELECT et.color FROM event_tags et
+                       WHERE et.event_id = e.id AND et.deleted_at IS NULL
+                       ORDER BY et.id ASC LIMIT 1
+                   ) AS tag_color
+            FROM event_dates ed
+            INNER JOIN events e ON e.id = ed.event_id AND e.deleted_at IS NULL
+            LEFT JOIN teams t ON t.id = e.team_id AND t.deleted_at IS NULL
+            WHERE ed.deleted_at IS NULL
+              AND ed.start_datetime < ?
+              AND ed.end_datetime > ?
+              {$teamSql}
+              AND (
+                e.created_by = ?
+                OR EXISTS (
+                    SELECT 1 FROM event_visibility ev
+                    WHERE ev.event_id = e.id AND ev.user_id = ? AND ev.deleted_at IS NULL
+                )
+                OR EXISTS (
+                    SELECT 1 FROM event_registrations er
+                    WHERE er.event_id = e.id AND er.user_id = ? AND er.deleted_at IS NULL AND er.status != 'cancelled'
+                )
+                OR EXISTS (
+                    SELECT 1 FROM team_members tm
+                    WHERE tm.team_id = e.team_id
+                      AND tm.user_id = ?
+                      AND tm.role = 'owner'
+                      AND tm.deleted_at IS NULL
+                      AND e.team_id IS NOT NULL
+                )
+              )
+            ORDER BY ed.start_datetime ASC
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        if ($teamId !== null) {
+            $types = 'ssiiiii';
+            $params = [$rangeEnd, $rangeStart, $teamId, $userId, $userId, $userId, $userId];
+        } else {
+            $types = 'ssiiii';
+            $params = [$rangeEnd, $rangeStart, $userId, $userId, $userId, $userId];
+        }
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $defaultColors = [
+            'competition' => '#22c55e',
+            'registration_deadline' => '#38bdf8',
+            'meeting' => '#a78bfa',
+            'other' => '#94a3b8',
+        ];
+
+        $items = [];
+        while ($row = $result->fetch_assoc()) {
+            $dateType = $row['date_type'] ?: 'other';
+            $typeLabel = ucfirst(str_replace('_', ' ', $dateType));
+            $color = $row['tag_color'] ?: ($defaultColors[$dateType] ?? $defaultColors['other']);
+            $title = $typeLabel . ': ' . $row['title'];
+
+            $items[] = [
+                'id' => 'date_' . $row['date_id'],
+                'title' => $title,
+                'start' => date('c', strtotime($row['start_datetime'])),
+                'end' => date('c', strtotime($row['end_datetime'])),
+                'url' => '/event/view?id=' . \App\Services\IdEncoder::encode((int)$row['event_id']),
+                'backgroundColor' => $color,
+                'borderColor' => $color,
+                'textColor' => '#0f172a',
+                'extendedProps' => [
+                    'event_id' => (int)$row['event_id'],
+                    'date_type' => $dateType,
+                    'team_name' => $row['team_name'],
+                    'description' => $row['date_description'],
+                ],
+            ];
+        }
+        $stmt->close();
+        return $items;
+    }
+
+    /**
      * Get event dates
      */
     private function getEventDates(int $eventId): array
