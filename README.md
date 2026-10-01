@@ -52,6 +52,7 @@
 - Pagination สำหรับรายการงาน
 - แสดง event dates และ tags ในหน้ารายการ
 - หน้า `/event` แสดงรายชื่อทีมที่ user เป็นสมาชิกก่อน — คลิกทีมแล้วจึงแสดงรายการ event ของทีมนั้น (`/event?team=...`)
+- ในหน้ารายการ event ของทีม: ค้นหาชื่อ event, กรองตาม tag, กรองตามช่วงวันที่ (event dates)
 - Soft-deleted rows จะถูก hard-delete อัตโนมัติทุก 5 นาที (MariaDB EVENT)
 - Timezone: Asia/Bangkok (GMT+7)
 ### User Management

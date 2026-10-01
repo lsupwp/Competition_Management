@@ -37,14 +37,37 @@ $events = [];
 $totalPages = 1;
 $total = 0;
 $queryBase = '?';
+$availableTags = [];
+$filters = [
+    'q' => trim((string)($_GET['q'] ?? '')),
+    'tag' => trim((string)($_GET['tag'] ?? '')),
+    'date_from' => trim((string)($_GET['date_from'] ?? '')),
+    'date_to' => trim((string)($_GET['date_to'] ?? '')),
+];
+$hasActiveFilters = $filters['q'] !== '' || $filters['tag'] !== '' || $filters['date_from'] !== '' || $filters['date_to'] !== '';
 
 if ($filterTeam) {
     $title = 'Events — ' . $filterTeam['name'] . ' - Team Competition';
-    $eventData = $eventController->getEvents($page, $perPage, $userId, $filterTeamId);
+    $availableTags = $eventController->getAvailableEventTags($userId, $filterTeamId);
+    $eventData = $eventController->getEvents($page, $perPage, $userId, $filterTeamId, $filters);
     $events = $eventData['events'];
     $totalPages = $eventData['totalPages'];
     $total = $eventData['total'];
-    $queryBase = '?team=' . urlencode(\App\Services\IdEncoder::encode($filterTeamId)) . '&';
+
+    $queryParts = ['team=' . urlencode(\App\Services\IdEncoder::encode($filterTeamId))];
+    if ($filters['q'] !== '') {
+        $queryParts[] = 'q=' . urlencode($filters['q']);
+    }
+    if ($filters['tag'] !== '') {
+        $queryParts[] = 'tag=' . urlencode($filters['tag']);
+    }
+    if ($filters['date_from'] !== '') {
+        $queryParts[] = 'date_from=' . urlencode($filters['date_from']);
+    }
+    if ($filters['date_to'] !== '') {
+        $queryParts[] = 'date_to=' . urlencode($filters['date_to']);
+    }
+    $queryBase = '?' . implode('&', $queryParts) . '&';
 } else {
     $teams = $eventController->getTeamsForEventIndex($userId);
 }
@@ -139,17 +162,60 @@ ob_start();
             </div>
         <?php endif; ?>
 
-    <?php elseif (empty($events)): ?>
-        <div class="card bg-base-100 shadow-xl">
-            <div class="card-body text-center py-16">
-                <h2 class="text-2xl font-bold mb-4">No events yet</h2>
-                <p class="text-base-content/70 mb-6">No visible events for this team</p>
-                <?php if ($canCreateEvent): ?>
-                    <a href="/event/create" class="btn btn-primary">Create Event</a>
-                <?php endif; ?>
+    <?php elseif ($filterTeam): ?>
+        <form method="GET" action="/event" class="card bg-base-100 shadow-md mb-6">
+            <div class="card-body gap-4">
+                <input type="hidden" name="team" value="<?= htmlspecialchars(\App\Services\IdEncoder::encode($filterTeamId)) ?>">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text">Search title</span></label>
+                        <input type="search" name="q" value="<?= htmlspecialchars($filters['q']) ?>"
+                               class="input input-bordered w-full" placeholder="Event title...">
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text">Tag</span></label>
+                        <select name="tag" class="select select-bordered w-full">
+                            <option value="">All tags</option>
+                            <?php foreach ($availableTags as $tagName): ?>
+                                <option value="<?= htmlspecialchars($tagName) ?>" <?= $filters['tag'] === $tagName ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($tagName) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text">Date from</span></label>
+                        <input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from']) ?>"
+                               class="input input-bordered w-full">
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-1"><span class="label-text">Date to</span></label>
+                        <input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to']) ?>"
+                               class="input input-bordered w-full">
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                    <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($filterTeamId)) ?>" class="btn btn-ghost btn-sm">Clear</a>
+                </div>
             </div>
-        </div>
-    <?php else: ?>
+        </form>
+
+        <?php if (empty($events)): ?>
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body text-center py-16">
+                    <h2 class="text-2xl font-bold mb-4"><?= $hasActiveFilters ? 'No matching events' : 'No events yet' ?></h2>
+                    <p class="text-base-content/70 mb-6">
+                        <?= $hasActiveFilters ? 'Try different search or filter options' : 'No visible events for this team' ?>
+                    </p>
+                    <?php if ($hasActiveFilters): ?>
+                        <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($filterTeamId)) ?>" class="btn btn-ghost">Clear filters</a>
+                    <?php elseif ($canCreateEvent): ?>
+                        <a href="/event/create" class="btn btn-primary">Create Event</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php else: ?>
         <div class="mb-4 text-sm text-base-content/70">
             Showing <?= count($events) ?> of <?= $total ?> events
         </div>
@@ -259,6 +325,7 @@ ob_start();
                     <?php endif; ?>
                 </div>
             </div>
+        <?php endif; ?>
         <?php endif; ?>
     <?php endif; ?>
 </div>

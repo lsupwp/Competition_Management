@@ -17,59 +17,102 @@ class EventController
     }
 
     /**
-     * Get events visible to user, with pagination
+     * Get events visible to user, with pagination and filters
+     *
+     * @param array{q?:string,tag?:string,date_from?:string,date_to?:string} $filters
      */
-    public function getEvents(int $page = 1, int $perPage = 10, ?int $userId = null, ?int $teamId = null): array
+    public function getEvents(int $page = 1, int $perPage = 10, ?int $userId = null, ?int $teamId = null, array $filters = []): array
     {
         $offset = ($page - 1) * $perPage;
 
-        $visibilitySql = '';
+        $where = ['e.deleted_at IS NULL'];
+        $types = '';
+        $params = [];
+
         if ($userId !== null) {
-            $visibilitySql = "
-                AND (
-                    e.created_by = ?
-                    OR EXISTS (
-                        SELECT 1 FROM event_visibility ev
-                        WHERE ev.event_id = e.id AND ev.user_id = ? AND ev.deleted_at IS NULL
-                    )
-                    OR EXISTS (
-                        SELECT 1 FROM event_registrations er
-                        WHERE er.event_id = e.id AND er.user_id = ? AND er.deleted_at IS NULL AND er.status != 'cancelled'
-                    )
-                    OR EXISTS (
-                        SELECT 1 FROM team_members tm
-                        WHERE tm.team_id = e.team_id
-                          AND tm.user_id = ?
-                          AND tm.role = 'owner'
-                          AND tm.deleted_at IS NULL
-                          AND e.team_id IS NOT NULL
-                    )
+            $where[] = "(
+                e.created_by = ?
+                OR EXISTS (
+                    SELECT 1 FROM event_visibility ev
+                    WHERE ev.event_id = e.id AND ev.user_id = ? AND ev.deleted_at IS NULL
                 )
-            ";
+                OR EXISTS (
+                    SELECT 1 FROM event_registrations er
+                    WHERE er.event_id = e.id AND er.user_id = ? AND er.deleted_at IS NULL AND er.status != 'cancelled'
+                )
+                OR EXISTS (
+                    SELECT 1 FROM team_members tm
+                    WHERE tm.team_id = e.team_id
+                      AND tm.user_id = ?
+                      AND tm.role = 'owner'
+                      AND tm.deleted_at IS NULL
+                      AND e.team_id IS NOT NULL
+                )
+            )";
+            $types .= 'iiii';
+            array_push($params, $userId, $userId, $userId, $userId);
         }
 
-        $teamSql = '';
         if ($teamId !== null) {
-            $teamSql = ' AND e.team_id = ? ';
+            $where[] = 'e.team_id = ?';
+            $types .= 'i';
+            $params[] = $teamId;
         }
+
+        $q = trim((string)($filters['q'] ?? ''));
+        if ($q !== '') {
+            $where[] = 'e.title LIKE ?';
+            $types .= 's';
+            $params[] = '%' . $q . '%';
+        }
+
+        $tag = trim((string)($filters['tag'] ?? ''));
+        if ($tag !== '') {
+            $where[] = "EXISTS (
+                SELECT 1 FROM event_tags et
+                WHERE et.event_id = e.id AND et.deleted_at IS NULL AND et.name = ?
+            )";
+            $types .= 's';
+            $params[] = $tag;
+        }
+
+        $dateFrom = trim((string)($filters['date_from'] ?? ''));
+        $dateTo = trim((string)($filters['date_to'] ?? ''));
+        if ($dateFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+            $where[] = "EXISTS (
+                SELECT 1 FROM event_dates ed
+                WHERE ed.event_id = e.id AND ed.deleted_at IS NULL
+                  AND DATE(ed.end_datetime) >= ?
+            )";
+            $types .= 's';
+            $params[] = $dateFrom;
+        }
+        if ($dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+            $where[] = "EXISTS (
+                SELECT 1 FROM event_dates ed
+                WHERE ed.event_id = e.id AND ed.deleted_at IS NULL
+                  AND DATE(ed.start_datetime) <= ?
+            )";
+            $types .= 's';
+            $params[] = $dateTo;
+        }
+
+        $whereSql = implode(' AND ', $where);
 
         $countStmt = $this->db->prepare("
             SELECT COUNT(*) as total
             FROM events e
-            WHERE e.deleted_at IS NULL
-            {$visibilitySql}
-            {$teamSql}
+            WHERE {$whereSql}
         ");
-        if ($userId !== null && $teamId !== null) {
-            $countStmt->bind_param('iiiii', $userId, $userId, $userId, $userId, $teamId);
-        } elseif ($userId !== null) {
-            $countStmt->bind_param('iiii', $userId, $userId, $userId, $userId);
-        } elseif ($teamId !== null) {
-            $countStmt->bind_param('i', $teamId);
+        if ($types !== '') {
+            $countStmt->bind_param($types, ...$params);
         }
         $countStmt->execute();
-        $total = $countStmt->get_result()->fetch_assoc()['total'];
+        $total = (int)$countStmt->get_result()->fetch_assoc()['total'];
         $countStmt->close();
+
+        $listTypes = $types . 'ii';
+        $listParams = array_merge($params, [$perPage, $offset]);
 
         $stmt = $this->db->prepare("
             SELECT e.*, u.name as creator_name, t.name as team_name,
@@ -77,21 +120,11 @@ class EventController
             FROM events e
             JOIN users u ON e.created_by = u.id
             LEFT JOIN teams t ON e.team_id = t.id AND t.deleted_at IS NULL
-            WHERE e.deleted_at IS NULL
-            {$visibilitySql}
-            {$teamSql}
+            WHERE {$whereSql}
             ORDER BY e.created_at DESC
             LIMIT ? OFFSET ?
         ");
-        if ($userId !== null && $teamId !== null) {
-            $stmt->bind_param('iiiiiii', $userId, $userId, $userId, $userId, $teamId, $perPage, $offset);
-        } elseif ($userId !== null) {
-            $stmt->bind_param('iiiiii', $userId, $userId, $userId, $userId, $perPage, $offset);
-        } elseif ($teamId !== null) {
-            $stmt->bind_param('iii', $teamId, $perPage, $offset);
-        } else {
-            $stmt->bind_param('ii', $perPage, $offset);
-        }
+        $stmt->bind_param($listTypes, ...$listParams);
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -110,6 +143,61 @@ class EventController
             'perPage' => $perPage,
             'totalPages' => max(1, (int)ceil($total / $perPage))
         ];
+    }
+
+    /**
+     * Distinct tag names for visible events (optionally scoped to team)
+     */
+    public function getAvailableEventTags(int $userId, ?int $teamId = null): array
+    {
+        $types = '';
+        $params = [];
+        $extra = '';
+        if ($teamId !== null) {
+            $extra = ' AND e.team_id = ? ';
+            $types .= 'i';
+            $params[] = $teamId;
+        }
+        $types .= 'iiii';
+        array_push($params, $userId, $userId, $userId, $userId);
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT et.name
+            FROM event_tags et
+            INNER JOIN events e ON e.id = et.event_id
+            WHERE et.deleted_at IS NULL
+              AND e.deleted_at IS NULL
+              {$extra}
+              AND (
+                e.created_by = ?
+                OR EXISTS (
+                    SELECT 1 FROM event_visibility ev
+                    WHERE ev.event_id = e.id AND ev.user_id = ? AND ev.deleted_at IS NULL
+                )
+                OR EXISTS (
+                    SELECT 1 FROM event_registrations er
+                    WHERE er.event_id = e.id AND er.user_id = ? AND er.deleted_at IS NULL AND er.status != 'cancelled'
+                )
+                OR EXISTS (
+                    SELECT 1 FROM team_members tm
+                    WHERE tm.team_id = e.team_id
+                      AND tm.user_id = ?
+                      AND tm.role = 'owner'
+                      AND tm.deleted_at IS NULL
+                      AND e.team_id IS NOT NULL
+                )
+              )
+            ORDER BY et.name
+        ");
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $tags = [];
+        while ($row = $result->fetch_assoc()) {
+            $tags[] = $row['name'];
+        }
+        $stmt->close();
+        return $tags;
     }
 
     /**
