@@ -8,6 +8,11 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /event');
+    exit;
+}
+
 if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
     $_SESSION['flash_error'] = 'Invalid security token';
     header('Location: /event');
@@ -16,7 +21,6 @@ if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
 
 $encodedEventId = $_POST['event_id'] ?? null;
 $eventId = $encodedEventId ? \App\Services\IdEncoder::decode($encodedEventId) : null;
-$registrationType = $_POST['registration_type'] ?? 'individual';
 
 if (!$eventId) {
     $_SESSION['flash_error'] = 'Event ID is required';
@@ -24,19 +28,18 @@ if (!$eventId) {
     exit;
 }
 
-$teamId = null;
-if (strpos($registrationType, 'team_') === 0) {
-    $teamId = (int)substr($registrationType, 5);
-}
-
 $eventController = new \App\Controllers\EventController();
-$result = $eventController->registerForEvent($eventId, $_SESSION['user']['id'], $teamId);
+$result = $eventController->deleteEvent($eventId, $_SESSION['user']['id']);
 
 if ($result['success']) {
     $_SESSION['flash_success'] = $result['message'];
+    header('Location: /event');
 } else {
     $_SESSION['flash_error'] = $result['error'];
+    if ($eventController->canUserSeeEvent($eventId, $_SESSION['user']['id'])) {
+        header('Location: /event/view?id=' . \App\Services\IdEncoder::encode($eventId));
+    } else {
+        header('Location: /event');
+    }
 }
-
-header('Location: /event/view?id=' . \App\Services\IdEncoder::encode($eventId));
 exit;

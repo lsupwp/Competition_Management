@@ -33,6 +33,13 @@ if (!$event) {
     exit;
 }
 
+$userId = $_SESSION['user']['id'];
+if (!$eventController->canUserSeeEvent($eventId, $userId)) {
+    $_SESSION['flash_error'] = 'You do not have permission to view this event';
+    header('Location: /event');
+    exit;
+}
+
 ob_start();
 ?>
 <div class="container mx-auto px-4 py-8 max-w-4xl">
@@ -73,11 +80,26 @@ ob_start();
                         <span><?= date('M d, Y', strtotime($event['created_at'])) ?></span>
                     </div>
                 </div>
-                <?php if ($event['created_by'] === $_SESSION['user']['id']): ?>
-                    <a href="/event/edit?id=<?= \App\Services\IdEncoder::encode($event['id']) ?>" class="btn btn-outline btn-sm">
-                        Edit Event
-                    </a>
-                <?php endif; ?>
+                <div class="flex gap-2">
+                    <?php
+                    $viewerId = (int)$_SESSION['user']['id'];
+                    $canEditEvent = $eventController->canUserEditEvent($eventId, $viewerId);
+                    $canDeleteEvent = $eventController->canUserDeleteEvent($eventId, $viewerId);
+                    ?>
+                    <?php if ($canEditEvent): ?>
+                        <a href="/event/edit?id=<?= \App\Services\IdEncoder::encode($event['id']) ?>" class="btn btn-outline btn-sm">
+                            Edit Event
+                        </a>
+                    <?php endif; ?>
+                    <?php if ($canDeleteEvent): ?>
+                        <form method="POST" action="/event/delete"
+                              onsubmit="return confirm('Delete this event? This cannot be undone easily.');">
+                            <input type="hidden" name="event_id" value="<?= htmlspecialchars(\App\Services\IdEncoder::encode($event['id'])) ?>">
+                            <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+                            <button type="submit" class="btn btn-error btn-outline btn-sm">Delete</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
             </div>
 
             <?php if (!empty($event['location'])): ?>
@@ -146,29 +168,20 @@ ob_start();
             <div class="divider"></div>
             
             <?php
-            $isRegistered = false;
-            $canRegister = true;
-            
-            // Check if user is already registered
-            foreach ($event['registrations'] as $reg) {
-                if ($reg['user_id'] == $_SESSION['user']['id']) {
-                    $isRegistered = true;
-                    break;
+            $userId = (int)$_SESSION['user']['id'];
+            $isRegistered = $eventController->isUserRegistered($eventId, $userId);
+            $canSeeEvent = $eventController->canUserSeeEvent($eventId, $userId);
+            $isEventOwner = (int)$event['created_by'] === $userId;
+            $encodedEventId = \App\Services\IdEncoder::encode($eventId);
+            // Only event's team (if any) — not all user teams
+            $registerTeams = [];
+            if (!empty($event['team_id'])) {
+                foreach ($eventController->getUserTeams($userId) as $team) {
+                    if ((int)$team['id'] === (int)$event['team_id']) {
+                        $registerTeams[] = $team;
+                        break;
+                    }
                 }
-            }
-            
-            // Check if user can see this event
-            $canSeeEvent = ($event['created_by'] == $_SESSION['user']['id']);
-            if (!$canSeeEvent) {
-                $visibilityStmt = $db->prepare("SELECT id FROM event_visibility WHERE event_id = ? AND user_id = ? AND deleted_at IS NULL");
-                $visibilityStmt->bind_param('ii', $eventId, $_SESSION['user']['id']);
-                $visibilityStmt->execute();
-                $canSeeEvent = $visibilityStmt->get_result()->num_rows > 0;
-                $visibilityStmt->close();
-            }
-            
-            if (!$canSeeEvent) {
-                $canRegister = false;
             }
             ?>
             
@@ -191,10 +204,10 @@ ob_start();
                         </svg>
                         <span>You are already registered for this event!</span>
                     </div>
-                <?php elseif ($canRegister): ?>
+                <?php else: ?>
                     <form method="POST" action="/event/register">
-                        <input type="hidden" name="event_id" value="<?= $eventId ?>">
-                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                        <input type="hidden" name="event_id" value="<?= htmlspecialchars($encodedEventId) ?>">
+                        <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                         
                         <div class="form-control mb-4">
                             <label class="label">
@@ -202,23 +215,11 @@ ob_start();
                             </label>
                             <select name="registration_type" class="select select-bordered w-full" required>
                                 <option value="individual">Individual Registration</option>
-                                <?php
-                                // Get user's teams
-                                $teamStmt = $db->prepare("
-                                    SELECT t.id, t.name 
-                                    FROM teams t 
-                                    JOIN team_members tm ON t.id = tm.team_id 
-                                    WHERE tm.user_id = ? AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
-                                ");
-                                $teamStmt->bind_param('i', $_SESSION['user']['id']);
-                                $teamStmt->execute();
-                                $teams = $teamStmt->get_result();
-                                
-                                while ($team = $teams->fetch_assoc()) {
-                                    echo "<option value=\"team_{$team['id']}\">Team: {$team['name']}</option>";
-                                }
-                                $teamStmt->close();
-                                ?>
+                                <?php foreach ($registerTeams as $team): ?>
+                                    <option value="team_<?= (int)$team['id'] ?>">
+                                        Team: <?= htmlspecialchars($team['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         
@@ -247,14 +248,25 @@ ob_start();
                                     <th>Team</th>
                                     <th>Status</th>
                                     <th>Registered At</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($event['registrations'] as $reg): ?>
+                                <?php foreach ($event['registrations'] as $reg):
+                                    $regUserId = (int)$reg['user_id'];
+                                    $isOwnRow = $regUserId === $userId;
+                                    $canUnregister = $isOwnRow;
+                                    $canKick = $isEventOwner && !$isOwnRow;
+                                ?>
                                     <tr>
                                         <td>
                                             <div>
-                                                <div class="font-semibold"><?= htmlspecialchars($reg['user_name']) ?></div>
+                                                <div class="font-semibold">
+                                                    <?= htmlspecialchars($reg['user_name']) ?>
+                                                    <?php if ($isOwnRow): ?>
+                                                        <span class="badge badge-ghost badge-sm">You</span>
+                                                    <?php endif; ?>
+                                                </div>
                                                 <div class="text-sm text-base-content/70"><?= htmlspecialchars($reg['user_email']) ?></div>
                                             </div>
                                         </td>
@@ -271,6 +283,26 @@ ob_start();
                                             </span>
                                         </td>
                                         <td><?= date('M d, Y H:i', strtotime($reg['registered_at'])) ?></td>
+                                        <td>
+                                            <?php if ($canUnregister): ?>
+                                                <form method="POST" action="/event/unregister" class="inline"
+                                                      onsubmit="return confirm('Unregister from this event?');">
+                                                    <input type="hidden" name="event_id" value="<?= htmlspecialchars($encodedEventId) ?>">
+                                                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+                                                    <button type="submit" class="btn btn-ghost btn-xs text-error">Unregister</button>
+                                                </form>
+                                            <?php elseif ($canKick): ?>
+                                                <form method="POST" action="/event/unregister" class="inline"
+                                                      onsubmit="return confirm('Remove this user from the event?');">
+                                                    <input type="hidden" name="event_id" value="<?= htmlspecialchars($encodedEventId) ?>">
+                                                    <input type="hidden" name="user_id" value="<?= htmlspecialchars(\App\Services\IdEncoder::encode($regUserId)) ?>">
+                                                    <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+                                                    <button type="submit" class="btn btn-ghost btn-xs text-error">Kick</button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span class="text-base-content/40">—</span>
+                                            <?php endif; ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>

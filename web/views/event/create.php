@@ -13,8 +13,8 @@ $title = 'Create Event - Team Competition';
 
 $eventController = new \App\Controllers\EventController();
 
-// Get user's teams
-$userTeams = $eventController->getUserTeams($_SESSION['user']['id']);
+// Only owner/admin teams can create events
+$userTeams = $eventController->getUserManagedTeams($_SESSION['user']['id']);
 
 $error = '';
 $old = [
@@ -25,10 +25,16 @@ $old = [
     'required_members' => 3
 ];
 
+if (empty($userTeams) && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $error = 'Only team owners and admins can create events. You need owner or admin role on at least one team.';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate CSRF token
     if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
         $error = 'Invalid security token. Please try again.';
+    } elseif (empty($userTeams)) {
+        $error = 'Only team owners and admins can create events.';
     } else {
         $result = $eventController->createEvent($_POST, $_SESSION['user']['id']);
         
@@ -66,6 +72,14 @@ ob_start();
         </div>
     <?php endif; ?>
 
+    <?php if (empty($userTeams)): ?>
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body text-center">
+                <p class="text-base-content/70 mb-4">You must be a team owner or admin to create events.</p>
+                <a href="/team/manage" class="btn btn-primary">Go to Teams</a>
+            </div>
+        </div>
+    <?php else: ?>
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
             <form method="POST" class="space-y-4">
@@ -227,6 +241,7 @@ ob_start();
             </form>
         </div>
     </div>
+    <?php endif; ?>
 </div>
 
 <script>

@@ -21,17 +21,26 @@
 
 ### Event System
 - สร้างและจัดการงานแข่ง
-- **Team Selection:** เลือกทีมที่ต้องการสร้างงาน (แสดงเฉพาะทีมที่ user เป็นสมาชิก)
+- **Create permission:** เฉพาะ **team owner** และ **team admin** เท่านั้นที่สร้าง event ได้ (member สร้างไม่ได้)
+- **Team Selection:** เลือกทีมที่ต้องการสร้างงาน (แสดงเฉพาะทีมที่ user เป็น owner/admin)
 - **Required Members:** กำหนดจำนวนสมาชิกที่ต้องการต่อทีม (ค่าเริ่มต้น: 3)
 - **Member Visibility:** เลือกสมาชิกที่ต้องการให้มองเห็นงาน
   - แสดง checkbox รายชื่อสมาชิกในทีมที่เลือก
   - เลือกเฉพาะสมาชิกที่จะเข้าร่วมงาน (เช่น 3 คนจาก 10 คน)
   - เฉพาะสมาชิกที่ถูกเลือกเท่านั้นที่จะเห็นงานนี้
+  - สมาชิกที่ลงทะเบียนแล้วไม่สามารถถูก revoke visibility ได้
+- **Event Visibility rules:**
+  - Event creator เห็นงานของตนเสมอ
+  - **Team owner** เห็นทุก event ของทีมเสมอ (แม้ไม่ได้อยู่ใน visibility list)
+  - User ที่ถูก grant visibility หรือลงทะเบียนแล้วเห็นงานนั้น
+- **Event Edit:** เฉพาะ event creator เท่านั้น
+- **Event Delete:** event creator หรือ **team owner** ของทีมที่ผูกกับ event (team owner ลบได้แต่แก้ไขไม่ได้)
 - **Event Registration:** สมัครสมาชิกงาน
-  - สมัครสมาชิกแบบ Individual หรือ Team
+  - สมัครสมาชิกแบบ Individual หรือ Team (เฉพาะทีมของ event)
   - ตรวจสอบสิทธิ์การมองเห็นงานก่อนสมัคร
   - ป้องกันการสมัครซ้ำ
-  - ตรวจสอบความเป็นสมาชิกทีมสำหรับการสมัครแบบ Team
+  - Unregister ได้จากตาราง registrations
+  - Event creator สามารถ Kick ผู้ลงทะเบียนออกได้
 - **Event Dates:** เพิ่มวันที่ได้ไม่จำกัด (วันแข่ง, วันสิ้นสุดลงทะเบียน, วันประชุม, อื่นๆ)
   - เลือกประเภทวันที่ (competition, registration_deadline, meeting, other)
   - กำหนดช่วงเวลาเริ่มต้น-สิ้นสุด
@@ -42,7 +51,8 @@
   - แสดง tags แบบ badge สีสวยงาม
 - Pagination สำหรับรายการงาน
 - แสดง event dates และ tags ในหน้ารายการ
-
+- Soft-deleted rows จะถูก hard-delete อัตโนมัติทุก 5 นาที (MariaDB EVENT)
+- Timezone: Asia/Bangkok (GMT+7)
 ### User Management
 - Email/password authentication
 - User roles (user, admin)
@@ -98,6 +108,8 @@ If you have an existing database, run migration files:
 docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/001_add_user_role.sql
 docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/002_add_activity_logs.sql
 docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/003_add_team_to_events.sql
+# Purge soft-deleted rows every 5 minutes (run as root; needs event_scheduler=ON)
+docker exec -i team_comp_db bash -c 'mariadb -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < migrations/005_purge_soft_deleted.sql
 ```
 
 ### Create Admin Account
@@ -148,7 +160,11 @@ web/
   │   └── event/          # Event management pages
   │       ├── index.php   # Event list
   │       ├── view.php    # Event detail
-  │       └── create.php  # Create event
+  │       ├── create.php  # Create event
+  │       ├── edit.php    # Edit event
+  │       ├── delete.php  # Delete event (POST)
+  │       ├── register.php
+  │       └── unregister.php
   ├── src/                # PHP classes (OOP)
   │   ├── Controllers/    # Request handlers
   │   │   ├── AuthController.php
@@ -188,8 +204,11 @@ File-based routing - filename = URL path:
 | `web/views/team/join.php` | `/team/join` | Join team |
 | `web/views/event/index.php` | `/event` | Event list |
 | `web/views/event/view.php` | `/event/view` | Event detail |
-| `web/views/event/create.php` | `/event/create` | Create event |
+| `web/views/event/create.php` | `/event/create` | Create event (owner/admin only) |
+| `web/views/event/edit.php` | `/event/edit` | Edit event (creator only) |
+| `web/views/event/delete.php` | `/event/delete` | Delete event (POST) |
 | `web/views/event/register.php` | `/event/register` | Register for event (POST) |
+| `web/views/event/unregister.php` | `/event/unregister` | Unregister/kick (POST) |
 | `web/api/team-members.php` | `/api/team-members` | Get team members (AJAX) |
 | `web/api/hello.php` | - | Include in views |
 
@@ -250,6 +269,8 @@ include_once __DIR__ . '/../templates/layout.php';
 |----------|-------------|---------|
 | `APP_NAME` | Application name | team_comp_app |
 | `APP_PORT` | Web port | 8000 |
+| `APP_URL` | Public app URL | http://localhost:8000 |
+| `APP_TIMEZONE` | App/DB timezone | Asia/Bangkok |
 | `APP_KEY` | Encryption key for IDs | (auto-generated) |
 | `DB_HOST` | Database host | mariadb |
 | `DB_PORT` | Database port | 3306 |
@@ -269,11 +290,21 @@ include_once __DIR__ . '/../templates/layout.php';
 ### Regular User
 - Create and manage teams
 - Join teams via invitation
-- Create and view events
-- Register for events
+- Create events only if team **owner** or **admin**
+- View events granted by visibility, registration, or as event creator / team owner
+- Register / unregister for events
 - Manage profile settings
 
-### Admin
+### Team owner
+- View every event belonging to the team
+- Delete team events (cannot edit events created by others)
+- Full team management (settings, roles, transfer)
+
+### Team admin
+- Create events for the team
+- Help manage team members (per existing team rules)
+
+### Admin (system)
 - All regular user permissions
 - Access activity log (`/activity`)
 - View all system activities
@@ -296,8 +327,8 @@ The system logs all important actions:
 - Invitation create/revoke
 
 **Event Actions:**
-- Event creation
-- Event registration
+- Event creation / update / delete
+- Event registration / unregister / kick
 
 **User Actions:**
 - Profile updates
@@ -312,8 +343,8 @@ View logs at `/activity` (admin only).
 - **Encrypted IDs:** All IDs in URLs are encrypted to prevent enumeration
 - **Password Hashing:** Argon2id algorithm
 - **Email Verification:** Required for new accounts
-- **Role-Based Access:** Admin-only pages protected
-- **Soft Deletes:** All tables support soft delete for data recovery
+- **Role-Based Access:** Admin-only pages protected; event create limited to team owner/admin
+- **Soft Deletes:** All tables support soft delete; hard-purged every 5 minutes
 
 ## License
 

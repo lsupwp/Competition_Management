@@ -17,26 +17,47 @@ $eventController = new \App\Controllers\EventController();
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $perPage = 10;
 
-// Get events
-$eventData = $eventController->getEvents($page, $perPage);
+// Get events visible to current user
+$eventData = $eventController->getEvents($page, $perPage, $_SESSION['user']['id']);
 $events = $eventData['events'];
 $totalPages = $eventData['totalPages'];
 $total = $eventData['total'];
+$canCreateEvent = !empty($eventController->getUserManagedTeams($_SESSION['user']['id']));
 
 ob_start();
 ?>
 <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <?php if (isset($_SESSION['flash_success'])): ?>
+        <div class="alert alert-success mb-6">
+            <span><?= htmlspecialchars($_SESSION['flash_success']) ?></span>
+        </div>
+        <?php unset($_SESSION['flash_success']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['flash_error'])): ?>
+        <div class="alert alert-error mb-6">
+            <span><?= htmlspecialchars($_SESSION['flash_error']) ?></span>
+        </div>
+        <?php unset($_SESSION['flash_error']); ?>
+    <?php endif; ?>
+
     <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-bold">Events</h1>
-        <a href="/event/create" class="btn btn-primary">Create Event</a>
+        <?php if ($canCreateEvent): ?>
+            <a href="/event/create" class="btn btn-primary">Create Event</a>
+        <?php endif; ?>
     </div>
 
     <?php if (empty($events)): ?>
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body text-center py-16">
                 <h2 class="text-2xl font-bold mb-4">No events yet</h2>
-                <p class="text-base-content/70 mb-6">Create your first event to get started</p>
-                <a href="/event/create" class="btn btn-primary">Create Event</a>
+                <p class="text-base-content/70 mb-6">
+                    <?= $canCreateEvent ? 'Create your first event to get started' : 'No events are visible to you yet' ?>
+                </p>
+                <?php if ($canCreateEvent): ?>
+                    <a href="/event/create" class="btn btn-primary">Create Event</a>
+                <?php endif; ?>
             </div>
         </div>
     <?php else: ?>
