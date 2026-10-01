@@ -20,14 +20,13 @@ $perPage = 10;
 $filterTeamId = null;
 $filterTeam = null;
 if (!empty($_GET['team'])) {
-    $filterTeamId = \App\Services\IdEncoder::decode($_GET['team']);
-    if ($filterTeamId) {
-        $filterTeam = $eventController->getTeamById((int)$filterTeamId);
-        if (!$filterTeam) {
-            $filterTeamId = null;
+    $decodedTeamId = \App\Services\IdEncoder::decode($_GET['team']);
+    if ($decodedTeamId) {
+        $filterTeam = $eventController->getTeamByIdForMember((int)$decodedTeamId, $userId);
+        if ($filterTeam) {
+            $filterTeamId = (int)$filterTeam['id'];
         }
-    } else {
-        $filterTeamId = null;
+        // Non-members: ignore team filter (no name disclosure)
     }
 }
 

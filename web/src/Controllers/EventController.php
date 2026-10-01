@@ -201,7 +201,29 @@ class EventController
     }
 
     /**
-     * Get team by ID
+     * Get team by ID only if the user is an active member (no name leak to outsiders).
+     */
+    public function getTeamByIdForMember(int $teamId, int $userId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT t.id, t.name, t.description
+            FROM teams t
+            INNER JOIN team_members tm
+                ON tm.team_id = t.id
+               AND tm.user_id = ?
+               AND tm.deleted_at IS NULL
+            WHERE t.id = ? AND t.deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('ii', $userId, $teamId);
+        $stmt->execute();
+        $team = $stmt->get_result()->fetch_assoc() ?: null;
+        $stmt->close();
+        return $team;
+    }
+
+    /**
+     * Get team by ID (internal; does not check membership)
      */
     public function getTeamById(int $teamId): ?array
     {
