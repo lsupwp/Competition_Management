@@ -40,6 +40,8 @@ if (!$eventController->canUserEditEvent($eventId, $userId)) {
 $userTeams = $eventController->getUserManagedTeams($userId);
 $visibilityUserIds = $eventController->getEventVisibilityUserIds($eventId);
 $registeredUserIds = $eventController->getRegisteredUserIds($eventId);
+$registeredCount = count($registeredUserIds);
+$minRequiredMembers = max(1, $registeredCount);
 // Registered always stay visible in UI selection
 $visibilityUserIds = array_values(array_unique(array_merge($visibilityUserIds, $registeredUserIds)));
 $teamMembers = !empty($event['team_id'])
@@ -175,8 +177,15 @@ ob_start();
                     <label class="label">
                         <span class="label-text font-semibold">Required Members per Team</span>
                     </label>
-                    <input type="number" name="required_members" value="<?= htmlspecialchars((string)$old['required_members']) ?>"
-                           class="input input-bordered w-full" min="1" max="100" required />
+                    <input type="number" name="required_members"
+                           value="<?= htmlspecialchars((string)max((int)$old['required_members'], $minRequiredMembers)) ?>"
+                           class="input input-bordered w-full"
+                           min="<?= (int)$minRequiredMembers ?>" max="100" required />
+                    <label class="label">
+                        <span class="label-text-alt">
+                            Cannot be below registered count (<?= (int)$registeredCount ?>)
+                        </span>
+                    </label>
                 </div>
 
                 <div class="form-control">
