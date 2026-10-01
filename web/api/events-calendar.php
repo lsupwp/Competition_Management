@@ -21,17 +21,23 @@ if ($start === '' || $end === '') {
     exit;
 }
 
+$eventController = new \App\Controllers\EventController();
+$userId = (int)$_SESSION['user']['id'];
+
 $teamId = null;
 if (!empty($_GET['team'])) {
     $decoded = \App\Services\IdEncoder::decode($_GET['team']);
     if ($decoded) {
-        $teamId = (int)$decoded;
+        $candidate = (int)$decoded;
+        // Only honor team filter when the caller is a member (EVT-02)
+        if ($eventController->getTeamByIdForMember($candidate, $userId)) {
+            $teamId = $candidate;
+        }
     }
 }
 
-$eventController = new \App\Controllers\EventController();
 $events = $eventController->getCalendarEvents(
-    (int)$_SESSION['user']['id'],
+    $userId,
     $start,
     $end,
     $teamId

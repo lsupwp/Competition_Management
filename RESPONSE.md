@@ -2,31 +2,33 @@
 
 | Field | Value |
 |-------|--------|
-| Source report | `REPORT.md` (SET-05/06 verified 2026-10-01) |
+| Source report | `REPORT.md` (Event management audit 2026-10-01) |
 | Response date | 2026-10-01 |
-| Branch | `auth` |
+| Branch | `event-system` |
 
 ---
 
 ## Verdict
 
-**No open code findings.** SET-05 and SET-06 verified fixed live.
+**EVT-02 fixed.** Non-members no longer learn team names via `/event?team=` or `/event/calendar?team=`.
 
 | ID | Status |
 |----|--------|
-| Auth suite (SEC-01, 03–07, 09, AUTH-10/11) | **Fixed** |
-| SET-05, SET-06 | **Fixed** (verified) |
+| EVT-02 | **Fixed** — `getTeamByIdForMember`; filter ignored without membership |
+| Auth / settings suite | **Fixed** (prior) |
 | SEC-02 | **Accepted / won't fix** |
 | SEC-08 | **Deferred** |
 
-### Optional follow-up (this pass)
+### Fix detail
 
-Report suggested `X-Content-Type-Options: nosniff` on `/uploads/*`. Running image lacked `mod_headers`; entrypoint now enables it, and Apache adds an explicit `/uploads/` `LocationMatch`.
+- Added `EventController::getTeamByIdForMember()` (JOIN `team_members`).
+- `/event` and `/event/calendar` resolve team titles only for members; outsiders get default page (no name in title/H1).
+- `/api/events-calendar` only applies `?team=` when the caller is a member.
 
 ---
 
 ## Checklist
 
-- [x] All settings + auth items closed or accepted
-- [x] Uploads `nosniff` header wiring
+- [x] EVT-02 team name disclosure closed
+- [x] Calendar API membership gate
 - [ ] SEC-08 UUID/ULID (optional backlog)
