@@ -15,7 +15,8 @@
 ### Team Management
 - สร้างและจัดการทีม (owner, admin, member)
 - เชิญสมาชิกเข้าทีมด้วย token หรือ email
-- โอนความเป็นเจ้าของทีม (Transfer Ownership)
+- โอนความเป็นเจ้าของทีม (Transfer Ownership) — เปลี่ยน owner ได้เฉพาะปุ่มนี้ (ไม่ผ่าน role selector)
+- เปลี่ยน role สมาชิกได้เฉพาะ admin ↔ member
 - ค้นหาสมาชิกในทีม
 - Pagination สำหรับรายการทีม
 
