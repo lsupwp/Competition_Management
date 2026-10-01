@@ -336,6 +336,32 @@ class AuthController
         ];
     }
 
+    /**
+     * Whether a password-reset token is present and not expired.
+     */
+    public function isValidPasswordResetToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id
+            FROM users
+            WHERE password_reset_token = ?
+              AND password_reset_token_expires_at > NOW()
+              AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('s', $token);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        return $row !== null;
+    }
+
     public function resetPassword(array $data): array
     {
         if (!CsrfService::validateToken($data['csrf_token'] ?? null)) {

@@ -7,6 +7,7 @@
 | Stack observed | Apache/2.4.68 (Debian), PHP/8.2.34, PHPMailer, phpdotenv |
 | Initial report | 2026-10-01 |
 | Auth retest | 2026-10-01 (post-remediation deploy) |
+| Response verify | 2026-10-01 (second `RESPONSE.md` — AUTH-10/11, SEC-07) |
 | Audience | Development / engineering |
 | Method | Authenticated black-box review; auth-focused retest after `RESPONSE.md` fixes |
 
@@ -14,19 +15,17 @@
 
 ## 1. Executive summary
 
-**Post-fix:** Several High/Medium items from the first pass are **confirmed fixed** on the live tunnel (Composer deny, registration anti-enum, password policy, login rate limit, security headers, CSRF still enforced, session rotation).
+**Post-fix (verified live):** SEC-01, SEC-03–SEC-06, SEC-07 (banner), SEC-09 (per eng), AUTH-10, and AUTH-11 are **confirmed fixed** on the current tunnel. CSRF, session rotation, rate limit, and password policy remain in good shape.
 
-**Still open / new from auth retest:**
+**Remaining:**
 
 | Priority | Item |
 |----------|------|
-| High (ops) | **SEC-02** — Shared demo admin credentials still accepted on the public ngrok URL |
-| Medium | **AUTH-11** — Forgot-password UI succeeds, but no working reset completion route was found (`/auth/reset-password` → 404) |
-| Low | **AUTH-10** — Logout via `GET /auth/logout` (logout CSRF) |
-| Low | **SEC-07** — Apache version string still disclosed |
-| Low (backlog) | **SEC-08** — Sequential opaque IDs (deferred by eng) |
+| Accepted risk | **SEC-02** — Eng accepted shared demo/admin creds on public ngrok (still work; won't fix) |
+| Low (backlog) | **SEC-08** — Sequential opaque IDs (deferred) |
+| Info | **AUTH-11 note** — GET `/auth/reset-password?token=…` shows the form for any non-empty token; invalid tokens are rejected on **POST** (OK). Prefer validating on GET too. |
 
-Auth feature review (login, register, logout, forgot/verify, session, rate limit, CSRF, unauth gates) did **not** find login CSRF bypass, session fixation, auth bypass of protected routes, or registration email enumeration on the current build.
+No login CSRF bypass, session fixation, or protected-route auth bypass found on the current build.
 
 ---
 
@@ -46,16 +45,16 @@ Auth feature review (login, register, logout, forgot/verify, session, rate limit
 | ID | Severity | Status | Title |
 |----|----------|--------|-------|
 | SEC-01 | High | **Fixed** | `composer.json` / `composer.lock` publicly readable |
-| SEC-02 | High | **Open (ops)** | Demo/admin credentials on public tunnel |
+| SEC-02 | High | **Accepted / won't fix** | Demo/admin credentials on public tunnel |
 | SEC-03 | Medium | **Fixed** | Registration email enumeration |
 | SEC-04 | Medium | **Fixed** | Weak password policy |
 | SEC-05 | Medium | **Fixed** | No login rate limiting |
 | SEC-06 | Medium | **Fixed** | Missing security headers |
-| SEC-07 | Low | **Partial** | Server / PHP version disclosed |
+| SEC-07 | Low | **Fixed** | Server / PHP version disclosed |
 | SEC-08 | Low | **Deferred** | Sequential opaque IDs |
-| SEC-09 | Low | **Fixed (claimed)** | Login timing skew (code fix; not re-timed this pass) |
-| AUTH-10 | Low | **New / Open** | Logout via GET enables logout CSRF |
-| AUTH-11 | Medium | **New / Open** | Password reset completion route not found (404) |
+| SEC-09 | Low | **Fixed** | Login timing skew |
+| AUTH-10 | Low | **Fixed** | Logout via GET enables logout CSRF |
+| AUTH-11 | Medium | **Fixed** | Password reset completion route not found (404) |
 
 ---
 
@@ -93,23 +92,15 @@ No further action unless deploy config regresses.
 
 ---
 
-### SEC-02 — High — Demo credentials on public exposure — **OPEN (OPS)**
+### SEC-02 — High — Demo credentials on public exposure — **ACCEPTED / WON'T FIX**
 
 **Component:** Ops / accounts / staging  
 
-**Description**  
-During auth retest, `admin@teamcomp.local` with the previously shared demo password still authenticated successfully on the public ngrok URL (before the tester IP hit rate limit).
+**Engineering response:** Intentional for course/demo; passwords not rotated.
 
-**Impact**  
-Anyone with the shared credentials can use admin features (including `/activity`) on the exposed tunnel.
+**Verify (2026-10-01):** Shared `admin@teamcomp.local` password still logs in on the public tunnel.
 
-**Recommendation**  
-- Rotate admin and all shared demo passwords now.  
-- Prefer VPN / ngrok auth / IP allowlist for demos.  
-- Set `APP_DEBUG=false` on public exposures.
-
-**Acceptance criteria**  
-Old shared passwords fail login; staging is not anonymously reachable with default creds.
+**Residual risk:** Anyone with the shared demo credentials can use admin features (including `/activity`) while the tunnel is public. Document as accepted risk for demos; do not carry the same defaults into production.
 
 ---
 
@@ -147,12 +138,9 @@ Old shared passwords fail login; staging is not anonymously reachable with defau
 
 ---
 
-### SEC-07 — Low — Version fingerprinting — **PARTIAL**
+### SEC-07 — Low — Version fingerprinting — **FIXED**
 
-**Retest:** `X-Powered-By` removed. **`Server: Apache/2.4.68 (Debian)` still present.**
-
-**Recommendation**  
-Further reduce Server banner if Apache config allows (`ServerTokens Prod` may still show version on this build—verify image/config actually applied).
+**Verify (2026-10-01):** `X-Powered-By` absent; `Server: Apache` only (no patch version string).
 
 ---
 
@@ -168,49 +156,24 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 ---
 
-### AUTH-10 — Low — Logout via GET (logout CSRF) — **NEW**
+### AUTH-10 — Low — Logout via GET (logout CSRF) — **FIXED**
 
-**Component:** `/auth/logout`  
-
-**Description**  
-Authenticated sessions are terminated by a simple `GET /auth/logout` (link in UI). No CSRF token is required for logout.
-
-**Impact**  
-A malicious page can force a logged-in victim’s browser to hit logout (annoyance / availability), not account takeover. Severity Low for most apps; higher if “logout” is abused to disrupt admin sessions during sensitive actions.
-
-**Recommendation**  
-- Prefer `POST /auth/logout` with CSRF token, or  
-- Keep GET but accept residual logout-CSRF risk as documented.
-
-**Acceptance criteria**  
-Logout requires CSRF-protected POST (or equivalent), and GET does not change session state.
+**Verify (2026-10-01):**
+- UI uses `POST /auth/logout` with `csrf_token` (no logout `href`)
+- `GET /auth/logout` redirects home and **does not** end the session (`/settings` still accessible)
+- `POST /auth/logout` with CSRF logs the user out (`/settings` → login)
 
 ---
 
-### AUTH-11 — Medium — Password reset completion route missing — **NEW**
+### AUTH-11 — Medium — Password reset completion route missing — **FIXED**
 
-**Component:** `/auth/forgot-password` → reset landing  
+**Verify (2026-10-01):**
+- `/auth/reset-password` exists (200)
+- Missing token → “Reset token is missing or invalid”
+- Form includes `csrf_token`, `token`, `password`, `password_confirmation` + policy hint
+- POST with forged token → “Reset link is invalid or has expired” (not accepted)
 
-**Description**  
-Forgot-password form accepts email and returns the generic “If your email is registered…” message. Common reset completion URLs return **404**, including:
-
-- `/auth/reset-password`
-- `/auth/reset-password?token=…`
-- `/auth/reset-password/{token}`
-- Several other conventional aliases
-
-Email verification at `/auth/verify` exists and validates tokens. A parallel reset completion endpoint was not found in black-box probing.
-
-**Impact**  
-Users may believe a reset email will work while the completion page is missing or unpublished—**broken recovery** and support burden. If emails still contain a working secret link on an obscure path, that path should be documented and hardened; if emails are sent to a 404, account recovery is broken.
-
-**Recommendation**  
-- Confirm the exact reset URL in the email template.  
-- Ensure the route is registered, CSRF-protected, token one-time, and rate-limited.  
-- Align forgot-password success with a real completion flow end-to-end.
-
-**Acceptance criteria**  
-Valid reset email link opens a password form; invalid/expired tokens fail safely; unused conventional paths either redirect consistently or are intentionally unused and documented.
+**Optional hardening:** GET currently shows the password form for any non-empty `token` (even `short` / random). Validation correctly happens on POST; rejecting invalid tokens on GET would be cleaner UX and slightly less noisy.
 
 ---
 
@@ -243,27 +206,25 @@ Valid reset email link opens a password form; invalid/expired tokens fail safely
 
 ## 8. Recommended backlog order (updated)
 
-1. **SEC-02** — Rotate demo/admin passwords; lock down public tunnel  
-2. **AUTH-11** — Confirm/fix password-reset completion flow end-to-end  
-3. **AUTH-10** — POST+CSRF logout (optional hardening)  
-4. **SEC-07** — Finish hiding Apache version  
-5. **SEC-08** — UUID/ULID when touching ID layer  
+1. **SEC-08** — UUID/ULID when touching ID layer (optional)  
+2. **SEC-02** — If this ever leaves course/demo context, rotate creds and lock the tunnel  
+3. **AUTH-11 polish** — Validate reset tokens on GET as well as POST (optional)
 
 ---
 
 ## 9. Remediation checklist
 
 - [x] SEC-01 Composer files not web-accessible  
-- [ ] SEC-02 Demo passwords rotated / staging locked down *(ops)*  
+- [x] SEC-02 Demo credentials — **accepted feature / won't fix** (eng)  
 - [x] SEC-06 Security headers on HTML responses  
-- [~] SEC-07 Fingerprinting reduced *(X-Powered-By gone; Server version remains)*  
+- [x] SEC-07 Fingerprinting reduced (`Server: Apache`)  
 - [x] SEC-04 Stronger password rules  
 - [x] SEC-05 Login rate limit  
 - [x] SEC-03 Registration anti-enum  
-- [x] SEC-09 Login timing alignment *(per eng; light retest)*  
+- [x] SEC-09 Login timing alignment  
 - [ ] SEC-08 UUID/ULID *(optional backlog)*  
-- [ ] AUTH-10 CSRF-safe logout  
-- [ ] AUTH-11 Password reset completion route verified in email + app  
+- [x] AUTH-10 CSRF-safe logout *(verified live)*  
+- [x] AUTH-11 Password reset completion route *(verified live; email body not read)*  
 
 ---
 

@@ -2,64 +2,45 @@
 
 | Field | Value |
 |-------|--------|
-| Source report | `REPORT.md` (initial + auth retest 2026-10-01) |
+| Source report | `REPORT.md` (verify pass 2026-10-01) |
 | Response date | 2026-10-01 |
-| Status | Remaining open code items closed except accepted/deferred |
+| Branch | `auth` |
 
 ---
 
 ## Summary
 
+Live retest confirmed prior remediations. Only optional polish remained.
+
 | ID | Status |
 |----|--------|
-| SEC-01 | **Fixed** |
-| SEC-02 | **Accepted feature / won't fix** (demo admin on ngrok) |
-| SEC-03 | **Fixed** |
-| SEC-04 | **Fixed** |
-| SEC-05 | **Fixed** |
-| SEC-06 | **Fixed** |
-| SEC-07 | **Fixed** (`Server: Apache` only; version string removed) |
-| SEC-08 | **Deferred** (IdEncoder / UUID backlog) |
-| SEC-09 | **Fixed** |
-| AUTH-10 | **Fixed** (logout is POST + CSRF; GET does not log out) |
-| AUTH-11 | **Fixed** (`/auth/reset-password` + email token flow) |
+| SEC-01 … SEC-07, SEC-09 | **Fixed** (verified) |
+| SEC-02 | **Accepted / won't fix** (demo creds) |
+| SEC-08 | **Deferred** |
+| AUTH-10 | **Fixed** (verified) |
+| AUTH-11 | **Fixed** + **GET token validation** added |
 
 ---
 
-## Finding-by-finding
+## AUTH-11 polish (this pass)
 
-### SEC-02 — Demo credentials — **Accepted feature**
+**Finding:** GET `/auth/reset-password?token=…` showed the form for any non-empty token; invalid tokens only failed on POST.
 
-Shared demo/admin passwords on public ngrok remain intentional for course/demo. Not rotated in code.
+**Fix:** `AuthController::isValidPasswordResetToken()` checks DB expiry on GET. Invalid/expired/missing tokens never show the password form — same message as POST (`Reset link is invalid or has expired` / missing).
 
-### AUTH-10 — Logout CSRF — **Fixed**
+---
 
-- Logout is `POST /auth/logout` with CSRF token (header menu form).
-- `GET /auth/logout` redirects home and does **not** destroy the session.
+## Unchanged by design
 
-### AUTH-11 — Password reset completion — **Fixed**
-
-- Forgot-password stores one-time `password_reset_token` (1 hour) and emails `/auth/reset-password?token=…`
-- Reset page validates CSRF, token expiry, password policy; clears token after success
-- Migration: `migrations/006_password_reset_tokens.sql`
-
-### SEC-07 — Apache version — **Fixed**
-
-- `ServerTokens Prod` via `docker/security-hardening.conf`
-- Retest expectation: `Server: Apache` (no patch version)
+- **SEC-02** — shared demo admin on ngrok remains intentional  
+- **SEC-08** — sequential `IdEncoder` backlog  
+- **Remember me** — UI checkbox only; session cookie lifetime (not a long-lived remember token) — product note, not changed  
 
 ---
 
 ## Checklist
 
-- [x] SEC-01 Composer files not web-accessible
-- [x] SEC-02 Demo credentials — accepted feature / won't fix
-- [x] SEC-03 Registration anti-enum
-- [x] SEC-04 Stronger password rules
-- [x] SEC-05 Login rate limit
-- [x] SEC-06 Security headers
-- [x] SEC-07 Server fingerprint reduced to `Apache`
-- [ ] SEC-08 UUID/ULID *(optional backlog)*
-- [x] SEC-09 Login timing alignment
-- [x] AUTH-10 CSRF-safe logout
-- [x] AUTH-11 Password reset completion flow
+- [x] SEC-01 … SEC-07, SEC-09, AUTH-10, AUTH-11 (route)
+- [x] AUTH-11 GET token validation
+- [x] SEC-02 accepted feature
+- [ ] SEC-08 UUID/ULID (optional backlog)

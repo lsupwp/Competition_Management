@@ -7,17 +7,27 @@ $title = 'Reset Password - Team Competition';
 $error = '';
 $success = '';
 $token = trim((string)($_GET['token'] ?? $_POST['token'] ?? ''));
+$tokenValid = false;
+
+$authController = new \App\Controllers\AuthController();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $authController = new \App\Controllers\AuthController();
     $result = $authController->resetPassword($_POST);
 
     if ($result['success']) {
         $success = $result['message'];
         $token = '';
+        $tokenValid = false;
     } else {
         $error = $result['error'] ?? 'Unable to reset password';
         $token = trim((string)($_POST['token'] ?? ''));
+        $tokenValid = $token !== '' && $authController->isValidPasswordResetToken($token);
+    }
+} elseif ($token !== '') {
+    $tokenValid = $authController->isValidPasswordResetToken($token);
+    if (!$tokenValid) {
+        $error = 'Reset link is invalid or has expired';
+        $token = '';
     }
 }
 
@@ -32,14 +42,14 @@ ob_start();
             <div class="alert alert-success">
                 <span><?= htmlspecialchars($success) ?></span>
             </div>
-            <div class="text-center mt-4">
+            <div class="mt-4 text-center">
                 <a href="/auth/login" class="btn btn-primary">Go to Login</a>
             </div>
-            <?php elseif ($token === ''): ?>
+            <?php elseif (!$tokenValid): ?>
             <div class="alert alert-error">
-                <span>Reset token is missing or invalid.</span>
+                <span><?= htmlspecialchars($error !== '' ? $error : 'Reset token is missing or invalid.') ?></span>
             </div>
-            <div class="text-center mt-4">
+            <div class="mt-4 text-center">
                 <a href="/auth/forgot-password" class="link link-primary">Request a new reset link</a>
             </div>
             <?php else: ?>
