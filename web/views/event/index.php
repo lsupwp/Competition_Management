@@ -194,7 +194,7 @@ ob_start();
                                class="input input-bordered w-full">
                     </div>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2 justify-end items-center">
                     <button type="submit" class="btn btn-primary btn-sm">Apply</button>
                     <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($filterTeamId)) ?>" class="btn btn-ghost btn-sm">Clear</a>
                 </div>
