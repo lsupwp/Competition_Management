@@ -90,6 +90,13 @@ Complete event management system with dynamic dates, custom tags, and visibility
 - Full event information
 - All event dates with type, datetime range, and description
 - All event tags with colors
+- **Registration Section:**
+  - Check if user can see event (visibility check)
+  - Check if user is already registered
+  - Registration form with type selection (individual/team)
+  - Team dropdown shows only user's teams
+  - CSRF protection on registration form
+  - Flash messages for success/error feedback
 - Registration list with:
   - User name and email
   - Team name (if team registration)
@@ -114,6 +121,14 @@ Complete event management system with dynamic dates, custom tags, and visibility
   - Fetch all dates, tags, and registrations
   - Join with users and teams tables
 
+- `registerForEvent()` - Register user for event
+  - Check event exists
+  - Check user can see event (visibility)
+  - Check user not already registered
+  - Validate team membership for team registrations
+  - Insert into event_registrations table
+  - Log activity
+
 - `getUserTeams()` - Get teams user is member of
   - Returns team id and name
   - Used for team selection dropdown
@@ -124,6 +139,8 @@ Complete event management system with dynamic dates, custom tags, and visibility
 
 - Helper methods:
   - `isUserTeamMember()` - Check if user is member of team
+  - `canUserSeeEvent()` - Check if user has visibility permission
+  - `isUserRegistered()` - Check if user already registered
   - `getEventDates()` - Get all dates for an event
   - `getEventTags()` - Get all tags for an event
   - `getEventRegistrations()` - Get all registrations for an event
@@ -209,13 +226,19 @@ Complete event management system with dynamic dates, custom tags, and visibility
 - [x] Encrypted IDs in URLs
 - [x] CSRF protection
 - [x] AJAX team member loading
+- [x] Event registration (individual)
+- [x] Event registration (team)
+- [x] Duplicate registration prevention
+- [x] Visibility permission check
+- [x] Team membership validation for team registration
 
 ## Files Modified/Created
 - `web/views/event/create.php` - Event creation form with team and member selection
 - `web/views/event/index.php` - Event list page
-- `web/views/event/view.php` - Event detail page
-- `web/src/Controllers/EventController.php` - Event business logic with team methods
-- `web/api/team-members.php` - API endpoint for team members (AJAX)
+- `web/views/event/view.php` - Event detail page with registration form
+- `web/views/event/register.php` - Registration handler (POST endpoint)
+- `web/src/Controllers/EventController.php` - Event business logic with team and registration methods
+- `web/api/team-members.php` - API endpoint for team members
 - `database.sql` - Database schema (updated with team_id, required_members)
 - `migrations/003_add_team_to_events.sql` - Migration for existing databases
 - `README.md` - Updated documentation
@@ -230,3 +253,4 @@ Complete event management system with dynamic dates, custom tags, and visibility
 6. `docs: update README with detailed event system features` - Detailed documentation
 7. `feat: add team selection and member visibility to event creation` - Team-based events with visibility control
 8. `fix: correct autoload path in team-members API` - Fix API endpoint path
+9. `feat: add event registration functionality` - Registration system with individual/team support

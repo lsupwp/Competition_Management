@@ -27,6 +27,11 @@
   - แสดง checkbox รายชื่อสมาชิกในทีมที่เลือก
   - เลือกเฉพาะสมาชิกที่จะเข้าร่วมงาน (เช่น 3 คนจาก 10 คน)
   - เฉพาะสมาชิกที่ถูกเลือกเท่านั้นที่จะเห็นงานนี้
+- **Event Registration:** สมัครสมาชิกงาน
+  - สมัครสมาชิกแบบ Individual หรือ Team
+  - ตรวจสอบสิทธิ์การมองเห็นงานก่อนสมัคร
+  - ป้องกันการสมัครซ้ำ
+  - ตรวจสอบความเป็นสมาชิกทีมสำหรับการสมัครแบบ Team
 - **Event Dates:** เพิ่มวันที่ได้ไม่จำกัด (วันแข่ง, วันสิ้นสุดลงทะเบียน, วันประชุม, อื่นๆ)
   - เลือกประเภทวันที่ (competition, registration_deadline, meeting, other)
   - กำหนดช่วงเวลาเริ่มต้น-สิ้นสุด
@@ -35,7 +40,6 @@
   - เพิ่ม tags ได้ไม่จำกัด (เช่น สนใจ, ลงแล้ว, รอ, ฯลฯ)
   - เลือกสีแบบ hex color สำหรับแต่ละ tag
   - แสดง tags แบบ badge สีสวยงาม
-- สมัครสมาชิกงาน (individual/team)
 - Pagination สำหรับรายการงาน
 - แสดง event dates และ tags ในหน้ารายการ
 
@@ -185,6 +189,7 @@ File-based routing - filename = URL path:
 | `web/views/event/index.php` | `/event` | Event list |
 | `web/views/event/view.php` | `/event/view` | Event detail |
 | `web/views/event/create.php` | `/event/create` | Create event |
+| `web/views/event/register.php` | `/event/register` | Register for event (POST) |
 | `web/api/team-members.php` | `/api/team-members` | Get team members (AJAX) |
 | `web/api/hello.php` | - | Include in views |
 
