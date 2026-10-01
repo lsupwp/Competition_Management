@@ -7,7 +7,8 @@
 | Stack observed | Apache/2.4.68 (Debian), PHP/8.2.34, PHPMailer, phpdotenv |
 | Initial report | 2026-10-01 |
 | Auth retest | 2026-10-01 (post-remediation deploy) |
-| Response verify | 2026-10-01 (second `RESPONSE.md` — AUTH-10/11, SEC-07) |
+| Response verify | 2026-10-01 (AUTH-10/11, SEC-07) |
+| AUTH-11 GET polish | 2026-10-01 — verified invalid tokens no longer show form |
 | Audience | Development / engineering |
 | Method | Authenticated black-box review; auth-focused retest after `RESPONSE.md` fixes |
 
@@ -23,7 +24,6 @@
 |----------|------|
 | Accepted risk | **SEC-02** — Eng accepted shared demo/admin creds on public ngrok (still work; won't fix) |
 | Low (backlog) | **SEC-08** — Sequential opaque IDs (deferred) |
-| Info | **AUTH-11 note** — GET `/auth/reset-password?token=…` shows the form for any non-empty token; invalid tokens are rejected on **POST** (OK). Prefer validating on GET too. |
 
 No login CSRF bypass, session fixation, or protected-route auth bypass found on the current build.
 
@@ -165,7 +165,7 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 ---
 
-### AUTH-11 — Medium — Password reset completion route missing — **FIXED**
+### AUTH-11 — Medium — Password reset completion route missing — **FIXED** (+ GET polish)
 
 **Verify (2026-10-01):**
 - `/auth/reset-password` exists (200)
@@ -173,7 +173,9 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 - Form includes `csrf_token`, `token`, `password`, `password_confirmation` + policy hint
 - POST with forged token → “Reset link is invalid or has expired” (not accepted)
 
-**Optional hardening:** GET currently shows the password form for any non-empty `token` (even `short` / random). Validation correctly happens on POST; rejecting invalid tokens on GET would be cleaner UX and slightly less noisy.
+**GET token validation (follow-up, verified live):**
+- Invalid/expired/non-empty garbage tokens (`short`, `zzzz`, 64×`a`, etc.) **do not** show the password form
+- Same invalid/expired messaging as POST; form only appears for a DB-valid unexpired token
 
 ---
 
@@ -207,8 +209,7 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 ## 8. Recommended backlog order (updated)
 
 1. **SEC-08** — UUID/ULID when touching ID layer (optional)  
-2. **SEC-02** — If this ever leaves course/demo context, rotate creds and lock the tunnel  
-3. **AUTH-11 polish** — Validate reset tokens on GET as well as POST (optional)
+2. **SEC-02** — If this ever leaves course/demo context, rotate creds and lock the tunnel
 
 ---
 
@@ -225,6 +226,7 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 - [ ] SEC-08 UUID/ULID *(optional backlog)*  
 - [x] AUTH-10 CSRF-safe logout *(verified live)*  
 - [x] AUTH-11 Password reset completion route *(verified live; email body not read)*  
+- [x] AUTH-11 GET token validation *(verified live — invalid tokens hide form)*  
 
 ---
 
@@ -244,4 +246,4 @@ Disposable registrations used `*@example.com` addresses during policy/enum tests
 ---
 
 **Prepared for:** Development team  
-**Action requested:** Close SEC-02 (ops) and AUTH-11 next; treat AUTH-10 as hardening.
+**Action requested:** Security code items closed aside from SEC-08 backlog and SEC-02 accepted demo risk.
