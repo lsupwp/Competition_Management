@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     email_verified_at TIMESTAMP NULL,
     verification_token VARCHAR(255) NULL,
     verification_token_expires_at TIMESTAMP NULL,
+    password_reset_token VARCHAR(255) NULL,
+    password_reset_token_expires_at TIMESTAMP NULL,
     last_login_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     INDEX idx_email (email),
     INDEX idx_role (role),
     INDEX idx_verification_token (verification_token),
+    INDEX idx_password_reset_token (password_reset_token),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

@@ -10,6 +10,17 @@ $title = 'Team Competition Management';
 $isLoggedIn = isset($_SESSION['user']);
 $sampleTeams = [];
 $sampleEvents = [];
+$flashError = '';
+$flashSuccess = '';
+
+if (isset($_SESSION['flash_error'])) {
+    $flashError = (string)$_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
+}
+if (isset($_SESSION['flash_success'])) {
+    $flashSuccess = (string)$_SESSION['flash_success'];
+    unset($_SESSION['flash_success']);
+}
 
 if ($isLoggedIn) {
     $userId = (int)$_SESSION['user']['id'];
@@ -25,6 +36,20 @@ if ($isLoggedIn) {
 
 ob_start();
 ?>
+<?php if ($flashError !== ''): ?>
+<div class="max-w-3xl mx-auto pt-6">
+    <div class="alert alert-error">
+        <span><?= htmlspecialchars($flashError) ?></span>
+    </div>
+</div>
+<?php endif; ?>
+<?php if ($flashSuccess !== ''): ?>
+<div class="max-w-3xl mx-auto pt-6">
+    <div class="alert alert-success">
+        <span><?= htmlspecialchars($flashSuccess) ?></span>
+    </div>
+</div>
+<?php endif; ?>
 <section class="max-w-3xl mx-auto py-16 md:py-24 text-center">
     <img src="/assets/logo.png" alt="Team Comp" class="mx-auto h-20 w-20 md:h-24 md:w-24 rounded-full object-cover" />
     <h1 class="mt-5 text-4xl md:text-5xl font-bold tracking-tight">Team Comp</h1>

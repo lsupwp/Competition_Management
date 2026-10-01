@@ -68,7 +68,10 @@
                     <li><a href="/team/manage">Manage Team</a></li>
                     <li><a href="/team/join">Join Team</a></li>
                     <li class="border-t border-base-300 mt-2 pt-2">
-                        <a href="/auth/logout" class="text-error">Logout</a>
+                        <form method="POST" action="/auth/logout" class="px-0">
+                            <?php include __DIR__ . '/components/csrf.php'; ?>
+                            <button type="submit" class="text-error w-full text-left">Logout</button>
+                        </form>
                     </li>
                 </ul>
             </div>

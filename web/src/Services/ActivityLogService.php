@@ -29,27 +29,65 @@ class ActivityLogService
         ?int $entityId = null,
         ?array $metadata = null
     ): void {
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+        $ipAddress = self::resolveClientIp();
         $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
         $metadataJson = $metadata ? json_encode($metadata) : null;
 
+        // Build SQL with NULL literals where needed — mysqli bind_param rejects null ints on PHP 8.1+
+        $userIdSql = $userId === null ? 'NULL' : '?';
+        $entityTypeSql = $entityType === null ? 'NULL' : '?';
+        $entityIdSql = $entityId === null ? 'NULL' : '?';
+        $metadataSql = $metadataJson === null ? 'NULL' : '?';
+        $ipSql = $ipAddress === null ? 'NULL' : '?';
+        $uaSql = $userAgent === null ? 'NULL' : '?';
+
         $stmt = $this->db->prepare("
             INSERT INTO activity_logs (user_id, action, entity_type, entity_id, description, metadata, ip_address, user_agent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ({$userIdSql}, ?, {$entityTypeSql}, {$entityIdSql}, ?, {$metadataSql}, {$ipSql}, {$uaSql})
         ");
 
-        $stmt->bind_param(
-            'ississss',
-            $userId,
-            $action,
-            $entityType,
-            $entityId,
-            $description,
-            $metadataJson,
-            $ipAddress,
-            $userAgent
-        );
+        if (!$stmt) {
+            error_log('ActivityLogService: failed to prepare insert');
+            return;
+        }
 
+        $types = '';
+        $params = [];
+        if ($userId !== null) {
+            $types .= 'i';
+            $params[] = $userId;
+        }
+        $types .= 's';
+        $params[] = $action;
+        if ($entityType !== null) {
+            $types .= 's';
+            $params[] = $entityType;
+        }
+        if ($entityId !== null) {
+            $types .= 'i';
+            $params[] = $entityId;
+        }
+        $types .= 's';
+        $params[] = $description;
+        if ($metadataJson !== null) {
+            $types .= 's';
+            $params[] = $metadataJson;
+        }
+        if ($ipAddress !== null) {
+            $types .= 's';
+            $params[] = $ipAddress;
+        }
+        if ($userAgent !== null) {
+            $types .= 's';
+            $params[] = $userAgent;
+        }
+
+        // bind_param requires references
+        $refs = [];
+        foreach ($params as $key => $value) {
+            $refs[$key] = &$params[$key];
+        }
+        $stmt->bind_param($types, ...$refs);
         $stmt->execute();
         $stmt->close();
     }
@@ -167,5 +205,78 @@ class ActivityLogService
         return $this->getLogs([
             'user_id' => $userId
         ], $page, $perPage);
+    }
+
+    /**
+     * Prefer X-Forwarded-For only when REMOTE_ADDR is a trusted proxy.
+     */
+    public static function resolveClientIp(): ?string
+    {
+        $remote = $_SERVER['REMOTE_ADDR'] ?? null;
+        if ($remote === null || $remote === '') {
+            return null;
+        }
+
+        $trusted = Env::get('TRUSTED_PROXIES', '127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16');
+        $trustedList = array_filter(array_map('trim', explode(',', (string)$trusted)));
+
+        if (!self::ipIsTrusted($remote, $trustedList)) {
+            return $remote;
+        }
+
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+        if ($forwarded === '') {
+            return $remote;
+        }
+
+        $parts = array_map('trim', explode(',', $forwarded));
+        $candidate = $parts[0] ?? '';
+        if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP)) {
+            return $candidate;
+        }
+
+        return $remote;
+    }
+
+    private static function ipIsTrusted(string $ip, array $trustedList): bool
+    {
+        foreach ($trustedList as $entry) {
+            if ($entry === '') {
+                continue;
+            }
+            if (str_contains($entry, '/')) {
+                if (self::ipInCidr($ip, $entry)) {
+                    return true;
+                }
+                continue;
+            }
+            if ($ip === $entry) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function ipInCidr(string $ip, string $cidr): bool
+    {
+        [$subnet, $mask] = array_pad(explode('/', $cidr, 2), 2, null);
+        if ($subnet === null || $mask === null) {
+            return false;
+        }
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
+            || filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+            return false;
+        }
+        $mask = (int)$mask;
+        if ($mask < 0 || $mask > 32) {
+            return false;
+        }
+        $ipLong = ip2long($ip);
+        $subnetLong = ip2long($subnet);
+        if ($ipLong === false || $subnetLong === false) {
+            return false;
+        }
+        $maskLong = $mask === 0 ? 0 : (~((1 << (32 - $mask)) - 1) & 0xFFFFFFFF);
+        return ($ipLong & $maskLong) === ($subnetLong & $maskLong);
     }
 }

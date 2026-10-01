@@ -46,3 +46,15 @@ if (class_exists(App\Services\SessionService::class)) {
         ini_set('session.cookie_secure', '1');
     }
 }
+
+// Hide fatals/details from end users unless APP_DEBUG is explicitly enabled
+$appDebug = strtolower((string)($_ENV['APP_DEBUG'] ?? getenv('APP_DEBUG') ?: 'false'));
+$debugEnabled = in_array($appDebug, ['1', 'true', 'yes', 'on'], true);
+ini_set('display_errors', $debugEnabled ? '1' : '0');
+ini_set('display_startup_errors', $debugEnabled ? '1' : '0');
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+
+if (class_exists(App\Services\SecurityHeaders::class)) {
+    App\Services\SecurityHeaders::apply();
+}

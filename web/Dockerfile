@@ -14,9 +14,15 @@ RUN docker-php-ext-install pdo_mysql mysqli mbstring exif pcntl bcmath gd
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-RUN a2enmod rewrite
+RUN a2enmod rewrite headers
+
+# Reduce PHP fingerprinting
+RUN echo "expose_php = Off" > /usr/local/etc/php/conf.d/security.ini
 
 COPY docker/00-arpache.conf /etc/apache2/sites-available/000-default.conf
+# Global ServerTokens (outside vhost also)
+RUN printf '%s\n' 'ServerTokens Prod' 'ServerSignature Off' > /etc/apache2/conf-available/security-hardening.conf \
+    && a2enconf security-hardening
 
 WORKDIR /var/www/html/web
 
