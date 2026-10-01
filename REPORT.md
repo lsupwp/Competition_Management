@@ -16,6 +16,7 @@
 | Event management audit | 2026-10-01 |
 | EVT-02 verify | 2026-10-01 — fixed on live |
 | Remaining paths audit | 2026-10-01 — `/terms`, `/activity`, `/team/settings`, `/team/invite`, `/api/team-members`, uploads |
+| Anon API 401 verify | 2026-10-01 — `/api/team-members` now 401 when unauthenticated |
 | Audience | Development / engineering |
 | Method | Authenticated black-box review; auth + `/settings` form review |
 
@@ -35,6 +36,8 @@
 **Settings / Teams / Events (verified):** SET-05/06 fixed; team management PASS; **EVT-02 fixed**.
 
 **Remaining paths (2026-10-01):** `/terms`, `/activity`, `/team/settings`, `/team/invite`, `/api/team-members`, `/uploads/teams/*` — **PASS** (no new High/Medium). See §5e.
+
+**Anon API status (verified):** `/api/team-members` now returns **401** when unauthenticated (aligned with `/api/events-calendar`).
 
 ---
 
@@ -333,7 +336,7 @@ Paths taken from eng `RESPONSE.md` that were not fully covered in earlier auth/s
 | `/team/settings` | → login | Owner only | Admin member denied; non-member denied |
 | `/team/invite` | → login | POST only useful | GET redirects manage; CSRF enforced; non-member invite denied |
 | `/api/events-calendar` | **401** JSON | 400 without dates / 200 with range | Membership filtering OK |
-| `/api/team-members` | 200 `Not authenticated` | Needs `team_id` (numeric) | Member OK; non-member `Access denied` |
+| `/api/team-members` | **401** JSON (verified) | Needs `team_id` (numeric) | Member OK; non-member `Access denied` |
 | `/uploads/avatars/`, `/uploads/teams/` | **403** listing | — | Individual files may 404 if missing; `nosniff` when served |
 | `/composer.json`, `/.env` | **403** | — | Still blocked |
 
@@ -354,15 +357,15 @@ Paths taken from eng `RESPONSE.md` that were not fully covered in earlier auth/s
 
 ### Notes (Low / Info — not opened as findings)
 
-| Note | Detail |
-|------|--------|
-| API auth status inconsistency | `/api/events-calendar` → **401** when anon; `/api/team-members` → **200** + `{"success":false,"error":"Not authenticated"}`. Prefer 401 for both. |
-| Numeric `team_id` on API | `/api/team-members` expects numeric ids (`1`,`2`,…) while UI urls use opaque ids — same SEC-08 theme; authz still enforced. |
-| Access-denied uniformity | Non-existent and non-member `team_id`s both return `Access denied` for u2 (no clear existence oracle in this sample). |
+| Note | Detail | Status |
+|------|--------|--------|
+| API auth status inconsistency | `/api/team-members` anon was 200; eng fixed to **401** | **Fixed** (verified live) |
+| Numeric `team_id` on API | `/api/team-members` expects numeric ids (`1`,`2`,…) while UI urls use opaque ids — same SEC-08 theme; authz still enforced. | Open (SEC-08) |
+| Access-denied uniformity | Non-existent and non-member `team_id`s both return `Access denied` for u2 (no clear existence oracle in this sample). | OK |
 
 ### Verdict
 
-**Remaining listed paths: PASS** — no new High/Medium issues.
+**Remaining listed paths: PASS** — no new High/Medium issues. Anon API 401 alignment **verified**.
 
 ---
 
@@ -418,6 +421,8 @@ Paths taken from eng `RESPONSE.md` that were not fully covered in earlier auth/s
 - [x] SET-06 Avatar upload save path/permissions *(verified live)*  
 - [x] Uploads `X-Content-Type-Options: nosniff` *(verified live)*  
 - [x] EVT-02 Non-member team name disclosure on event/calendar team filter *(verified live)*  
+- [x] Anon `/api/team-members` HTTP 401 *(verified live)*  
+
 
 ---
 
@@ -437,4 +442,4 @@ Disposable registrations used `*@example.com` addresses during policy/enum tests
 ---
 
 **Prepared for:** Development team  
-**Action requested:** No new open code findings from remaining-path sweep. SEC-02 accepted; SEC-08 deferred. Optional: unify anon API status codes to 401.
+**Action requested:** No open High/Medium code findings. SEC-02 accepted; SEC-08 deferred. Anon API 401 unified (verified).
