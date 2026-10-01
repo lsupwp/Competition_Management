@@ -78,70 +78,95 @@ ob_start();
 </div>
 
 <style>
-    #event-calendar .fc {
-        --fc-border-color: color-mix(in oklch, var(--color-base-content) 15%, transparent);
-        --fc-page-bg-color: transparent;
-        --fc-neutral-bg-color: var(--color-base-200);
-        --fc-list-event-hover-bg-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
-        --fc-today-bg-color: color-mix(in oklch, var(--color-primary) 12%, transparent);
+    /* FC mounts class "fc" on #event-calendar itself (not a child). */
+    #event-calendar.fc {
+        --fc-border-color: rgba(128, 128, 128, 0.35);
+        --fc-page-bg-color: #ffffff;
+        --fc-neutral-bg-color: #f3f4f6;
+        --fc-list-event-hover-bg-color: rgba(0, 0, 0, 0.04);
+        --fc-today-bg-color: rgba(59, 130, 246, 0.12);
         --fc-event-border-color: transparent;
-        --fc-button-text-color: var(--color-primary-content);
-        color: var(--color-base-content);
+        color: #111827;
         font-family: inherit;
     }
-    #event-calendar .fc .fc-toolbar-title {
+    html[data-theme="dark"] #event-calendar.fc {
+        --fc-border-color: rgba(255, 255, 255, 0.12);
+        --fc-page-bg-color: #1d232a;
+        --fc-neutral-bg-color: #2a323c;
+        --fc-list-event-hover-bg-color: rgba(255, 255, 255, 0.06);
+        --fc-today-bg-color: rgba(251, 191, 36, 0.18);
+        color: #e5e7eb;
+    }
+    #event-calendar.fc .fc-scrollgrid-section-sticky > *,
+    #event-calendar.fc .fc-scrollgrid-section-header > *,
+    #event-calendar.fc .fc-col-header,
+    #event-calendar.fc .fc-col-header-cell,
+    #event-calendar.fc th.fc-col-header-cell,
+    #event-calendar.fc .fc-scrollgrid-sync-inner {
+        background-color: #ffffff !important;
+        color: #111827 !important;
+    }
+    html[data-theme="dark"] #event-calendar.fc .fc-scrollgrid-section-sticky > *,
+    html[data-theme="dark"] #event-calendar.fc .fc-scrollgrid-section-header > *,
+    html[data-theme="dark"] #event-calendar.fc .fc-col-header,
+    html[data-theme="dark"] #event-calendar.fc .fc-col-header-cell,
+    html[data-theme="dark"] #event-calendar.fc th.fc-col-header-cell,
+    html[data-theme="dark"] #event-calendar.fc .fc-scrollgrid-sync-inner {
+        background-color: #1d232a !important;
+        color: #e5e7eb !important;
+    }
+    #event-calendar.fc .fc-toolbar-title {
         font-size: 1.25rem;
         font-weight: 700;
-        color: var(--color-base-content);
+        color: inherit;
     }
-    #event-calendar .fc .fc-button {
-        background: var(--color-primary);
+    #event-calendar.fc .fc-button {
+        background: oklch(0.7 0.15 198);
         border: none;
         text-transform: capitalize;
-        color: var(--color-primary-content);
+        color: #fff;
     }
-    #event-calendar .fc .fc-button-primary:not(:disabled).fc-button-active,
-    #event-calendar .fc .fc-button-primary:not(:disabled):active {
-        background: var(--color-primary-focus, var(--color-primary));
-        filter: brightness(0.9);
+    #event-calendar.fc .fc-button-primary:not(:disabled).fc-button-active,
+    #event-calendar.fc .fc-button-primary:not(:disabled):active {
+        filter: brightness(0.85);
     }
-    #event-calendar .fc .fc-col-header,
-    #event-calendar .fc .fc-col-header-cell,
-    #event-calendar .fc th {
-        background: var(--color-base-200) !important;
-        color: var(--color-base-content) !important;
+    #event-calendar.fc a.fc-col-header-cell-cushion,
+    #event-calendar.fc .fc-col-header-cell-cushion,
+    #event-calendar.fc .fc-timegrid-axis-cushion,
+    #event-calendar.fc .fc-timegrid-slot-label-cushion,
+    #event-calendar.fc a.fc-daygrid-day-number,
+    #event-calendar.fc .fc-daygrid-day-number,
+    #event-calendar.fc .fc-list-day-text,
+    #event-calendar.fc .fc-list-day-side-text {
+        color: inherit !important;
+        text-decoration: none !important;
     }
-    #event-calendar .fc .fc-col-header-cell-cushion,
-    #event-calendar .fc .fc-timegrid-axis-cushion,
-    #event-calendar .fc .fc-timegrid-slot-label-cushion,
-    #event-calendar .fc .fc-daygrid-day-number,
-    #event-calendar .fc .fc-list-day-text,
-    #event-calendar .fc .fc-list-day-side-text {
-        color: var(--color-base-content) !important;
-        text-decoration: none;
+    html[data-theme="dark"] #event-calendar.fc a.fc-col-header-cell-cushion,
+    html[data-theme="dark"] #event-calendar.fc .fc-col-header-cell-cushion {
+        color: #e5e7eb !important;
     }
-    #event-calendar .fc .fc-daygrid-event {
+    #event-calendar.fc .fc-daygrid-event {
         border-radius: 0.375rem;
         padding: 1px 4px;
         font-size: 0.75rem;
         font-weight: 600;
         border: none;
     }
-    #event-calendar .fc .fc-daygrid-day-number {
+    #event-calendar.fc .fc-daygrid-day-number {
         font-weight: 600;
         padding: 0.5rem;
     }
-    #event-calendar .fc .fc-col-header-cell-cushion {
+    #event-calendar.fc .fc-col-header-cell-cushion {
         font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.04em;
         text-transform: uppercase;
         padding: 0.75rem 0;
     }
-    #event-calendar .fc .fc-scrollgrid,
-    #event-calendar .fc .fc-scrollgrid td,
-    #event-calendar .fc .fc-scrollgrid th {
-        border-color: color-mix(in oklch, var(--color-base-content) 15%, transparent);
+    #event-calendar.fc .fc-scrollgrid,
+    #event-calendar.fc .fc-scrollgrid td,
+    #event-calendar.fc .fc-scrollgrid th {
+        border-color: var(--fc-border-color);
     }
 </style>
 
