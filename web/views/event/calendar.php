@@ -81,34 +81,35 @@ ob_start();
     #event-calendar .fc {
         --fc-border-color: color-mix(in oklch, var(--color-base-content) 15%, transparent);
         --fc-page-bg-color: transparent;
-        --fc-neutral-bg-color: oklch(var(--b2) / 1);
+        --fc-neutral-bg-color: var(--color-base-200);
         --fc-list-event-hover-bg-color: color-mix(in oklch, var(--color-base-content) 8%, transparent);
         --fc-today-bg-color: color-mix(in oklch, var(--color-primary) 12%, transparent);
         --fc-event-border-color: transparent;
-        --fc-button-text-color: oklch(var(--pc) / 1);
-        color: oklch(var(--bc) / 1);
+        --fc-button-text-color: var(--color-primary-content);
+        color: var(--color-base-content);
         font-family: inherit;
     }
     #event-calendar .fc .fc-toolbar-title {
         font-size: 1.25rem;
         font-weight: 700;
-        color: oklch(var(--bc) / 1);
+        color: var(--color-base-content);
     }
     #event-calendar .fc .fc-button {
-        background: oklch(var(--p));
+        background: var(--color-primary);
         border: none;
         text-transform: capitalize;
-        color: oklch(var(--pc) / 1);
+        color: var(--color-primary-content);
     }
     #event-calendar .fc .fc-button-primary:not(:disabled).fc-button-active,
     #event-calendar .fc .fc-button-primary:not(:disabled):active {
-        background: oklch(var(--pf));
+        background: var(--color-primary-focus, var(--color-primary));
+        filter: brightness(0.9);
     }
     #event-calendar .fc .fc-col-header,
     #event-calendar .fc .fc-col-header-cell,
     #event-calendar .fc th {
-        background: oklch(var(--b2) / 1) !important;
-        color: oklch(var(--bc) / 1);
+        background: var(--color-base-200) !important;
+        color: var(--color-base-content) !important;
     }
     #event-calendar .fc .fc-col-header-cell-cushion,
     #event-calendar .fc .fc-timegrid-axis-cushion,
@@ -116,7 +117,7 @@ ob_start();
     #event-calendar .fc .fc-daygrid-day-number,
     #event-calendar .fc .fc-list-day-text,
     #event-calendar .fc .fc-list-day-side-text {
-        color: oklch(var(--bc) / 1);
+        color: var(--color-base-content) !important;
         text-decoration: none;
     }
     #event-calendar .fc .fc-daygrid-event {
