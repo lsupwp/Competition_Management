@@ -1,0 +1,39 @@
+---
+description: Always commit changes; use feature branches by domain (auth/event/team)
+alwaysApply: true
+---
+
+# Git branch and commit workflow
+
+## Always commit
+
+- After any code/config change that is meant to keep, **create a git commit** in the same turn (do not leave a dirty tree of finished work).
+- Follow the repo commit style (Conventional Commits). Use a HEREDOC for the message.
+- Do not commit secrets (`.env`, credentials). `.env.example` is OK.
+- Do not push unless the user asks.
+
+## Check branch before editing
+
+Before fixing or implementing, run `git branch --show-current` (and `git status`).
+
+Switch to the matching feature branch **before** making the change:
+
+| Work area | Branch |
+|-----------|--------|
+| Auth (login, register, logout, verify, password reset, sessions for auth, CSRF on auth) | `auth` |
+| Events / calendar | `event-system` |
+| Teams / invites / members | `management-team` |
+| Shared / cross-cutting / unclear | ask user, or `main` only if they say so |
+
+Commands:
+
+```bash
+git checkout <branch>
+# then edit, then commit
+```
+
+If work was started on the wrong branch, move commits/changes onto the correct branch (cherry-pick or checkout files onto the right branch) before finishing — do not leave auth fixes only on `event-system`.
+
+## Mixed changes
+
+If a task touches multiple domains, prefer **separate commits on each domain branch** (auth commit on `auth`, event commit on `event-system`, etc.), not one mixed commit on the wrong branch.

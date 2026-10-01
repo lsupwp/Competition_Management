@@ -9,9 +9,7 @@ class CsrfService
 
     public static function generateToken(): string
     {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        SessionService::start();
 
         $token = bin2hex(random_bytes(32));
         $_SESSION[self::TOKEN_KEY] = [
@@ -24,11 +22,9 @@ class CsrfService
 
     public static function getToken(): string
     {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        SessionService::start();
 
-        if (!isset($_SESSION[self::TOKEN_KEY]) || 
+        if (!isset($_SESSION[self::TOKEN_KEY]) ||
             $_SESSION[self::TOKEN_KEY]['expires'] < time()) {
             return self::generateToken();
         }
@@ -38,9 +34,7 @@ class CsrfService
 
     public static function validateToken(?string $token): bool
     {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        SessionService::start();
 
         if (empty($token) || !isset($_SESSION[self::TOKEN_KEY])) {
             return false;

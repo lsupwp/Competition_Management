@@ -1,4 +1,5 @@
 -- Team Competition Management System Database Schema
+-- Single source of truth (fresh installs via compose initdb / re-import this file).
 -- Soft delete: ใช้ deleted_at (NULL = active, timestamp = deleted)
 -- Timestamps: created_at, updated_at ทุก table
 
@@ -11,16 +12,21 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255),
     avatar_url VARCHAR(500),
+    role ENUM('user', 'admin') DEFAULT 'user',
     email_verified_at TIMESTAMP NULL,
     verification_token VARCHAR(255) NULL,
     verification_token_expires_at TIMESTAMP NULL,
+    password_reset_token VARCHAR(255) NULL,
+    password_reset_token_expires_at TIMESTAMP NULL,
     last_login_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
     
     INDEX idx_email (email),
+    INDEX idx_role (role),
     INDEX idx_verification_token (verification_token),
+    INDEX idx_password_reset_token (password_reset_token),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -34,14 +40,12 @@ CREATE TABLE IF NOT EXISTS teams (
     description TEXT,
     logo_url VARCHAR(500),
     max_members INT DEFAULT 10,
-    is_public TINYINT(1) DEFAULT 0 COMMENT '0=private, 1=public',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
     
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_owner_id (owner_id),
-    INDEX idx_is_public (is_public),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -99,15 +103,19 @@ CREATE TABLE IF NOT EXISTS team_invitations (
 CREATE TABLE IF NOT EXISTS events (
     id INT AUTO_INCREMENT PRIMARY KEY,
     created_by INT NOT NULL,
+    team_id INT NULL COMMENT 'Team creating event',
     title VARCHAR(255) NOT NULL,
     description TEXT,
     location VARCHAR(500),
+    required_members INT DEFAULT 3 COMMENT 'Members needed per team',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
     
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
     INDEX idx_created_by (created_by),
+    INDEX idx_team_id (team_id),
     INDEX idx_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -201,6 +209,27 @@ CREATE TABLE IF NOT EXISTS event_visibility (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
+-- ACTIVITY LOGS TABLE
+-- =====================================================
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL COMMENT 'NULL for system actions',
+    action VARCHAR(100) NOT NULL COMMENT 'e.g., team.create, team.member.kick, auth.login',
+    entity_type VARCHAR(50) NULL COMMENT 'e.g., team, user, event',
+    entity_id INT NULL COMMENT 'ID of the affected entity',
+    description TEXT NOT NULL,
+    metadata JSON NULL COMMENT 'Additional context data',
+    ip_address VARCHAR(45) NULL,
+    user_agent TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_user_id (user_id),
+    INDEX idx_action (action),
+    INDEX idx_entity (entity_type, entity_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
 -- SESSIONS TABLE (optional - สำหรับ session management)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS sessions (
@@ -216,3 +245,34 @@ CREATE TABLE IF NOT EXISTS sessions (
     INDEX idx_user_id (user_id),
     INDEX idx_last_activity (last_activity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
+-- PURGE SOFT-DELETED ROWS (every 5 minutes)
+-- Requires event_scheduler=ON (compose.yaml mariadb command)
+-- =====================================================
+DROP EVENT IF EXISTS purge_soft_deleted_event;
+DROP PROCEDURE IF EXISTS purge_soft_deleted;
+
+DELIMITER //
+
+CREATE PROCEDURE purge_soft_deleted()
+BEGIN
+    DELETE FROM event_visibility WHERE deleted_at IS NOT NULL;
+    DELETE FROM event_dates WHERE deleted_at IS NOT NULL;
+    DELETE FROM event_tags WHERE deleted_at IS NOT NULL;
+    DELETE FROM event_registrations WHERE deleted_at IS NOT NULL;
+    DELETE FROM events WHERE deleted_at IS NOT NULL;
+    DELETE FROM team_invitations WHERE deleted_at IS NOT NULL;
+    DELETE FROM team_members WHERE deleted_at IS NOT NULL;
+    DELETE FROM teams WHERE deleted_at IS NOT NULL;
+    DELETE FROM users WHERE deleted_at IS NOT NULL;
+END //
+
+DELIMITER ;
+
+CREATE EVENT purge_soft_deleted_event
+ON SCHEDULE EVERY 5 MINUTE
+STARTS CURRENT_TIMESTAMP
+ON COMPLETION PRESERVE
+ENABLE
+DO CALL purge_soft_deleted();
