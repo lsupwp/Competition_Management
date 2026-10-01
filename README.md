@@ -100,21 +100,12 @@ docker compose up -d --build
 
 ### Database Setup
 
-Import database schema:
+Fresh Docker volumes load `database.sql` automatically. To re-import manually:
 ```bash
 docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < database.sql
 ```
 
-### Run Migrations
-
-If you have an existing database, run migration files:
-```bash
-docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/001_add_user_role.sql
-docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/002_add_activity_logs.sql
-docker exec -i team_comp_db mysql -u app_user -papp_password team_competition < migrations/003_add_team_to_events.sql
-# Purge soft-deleted rows every 5 minutes (run as root; needs event_scheduler=ON)
-docker exec -i team_comp_db bash -c 'mariadb -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < migrations/005_purge_soft_deleted.sql
-```
+Schema changes go in `database.sql` only (no separate migrations folder).
 
 ### Create Admin Account
 
@@ -136,14 +127,15 @@ compose.yaml              # Docker Compose configuration
 AGENT.md                  # Development constraints
 .env                      # Environment variables (not in git)
 .env.example              # Environment template
-database.sql              # Database schema
-migrations/               # Database migration files
+database.sql              # Database schema (single source of truth)
 docker/
   ├── 00-arpache.conf     # Apache virtual host
+  ├── security-hardening.conf
   └── entrypoint.sh       # Container entrypoint
 web/
   ├── Dockerfile          # PHP + Apache image
   ├── composer.json       # PHP dependencies
+  ├── create_admin.php    # Seed admin account
   ├── views/              # Frontend routes (file-based routing)
   │   ├── index.php       # Home page
   │   ├── 404.php         # Not found page

@@ -1,4 +1,5 @@
 -- Team Competition Management System Database Schema
+-- Single source of truth (fresh installs via compose initdb / re-import this file).
 -- Soft delete: ใช้ deleted_at (NULL = active, timestamp = deleted)
 -- Timestamps: created_at, updated_at ทุก table
 
