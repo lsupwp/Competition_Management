@@ -12,7 +12,7 @@ $title = 'Login - Team Competition';
 $error = '';
 $success = '';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (isset($_SESSION['flash_error'])) {
     $error = $_SESSION['flash_error'];

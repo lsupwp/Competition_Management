@@ -8,7 +8,7 @@ header("Pragma: no-cache");
 
 $title = 'Settings - Team Competition';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (!isset($_SESSION['user'])) {
     header('Location: /auth/login');
@@ -97,6 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($stmt->execute()) {
                         $_SESSION['user']['avatar_url'] = $avatarUrl;
                         $successMessages[] = 'Avatar updated';
+                        $activityLog->log(
+                            'file.upload',
+                            "Uploaded avatar '$filename'",
+                            $userId,
+                            'user',
+                            $userId,
+                            ['filename' => $filename, 'mime' => $fileType, 'size' => $fileSize, 'path' => $avatarUrl]
+                        );
                     } else {
                         $errors[] = 'Failed to update avatar';
                     }

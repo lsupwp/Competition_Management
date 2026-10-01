@@ -142,7 +142,7 @@ class AuthController
         $password = $data['password'];
 
         $stmt = $this->db->prepare("
-            SELECT id, email, name, password_hash, email_verified_at, role 
+            SELECT id, email, name, password_hash, email_verified_at, role, avatar_url
             FROM users 
             WHERE email = ? AND deleted_at IS NULL
         ");
@@ -153,6 +153,14 @@ class AuthController
         $stmt->close();
 
         if (!$user) {
+            $this->activityLog->log(
+                'auth.login_failed',
+                'Failed login attempt for unknown email',
+                null,
+                'user',
+                null,
+                ['email' => $email, 'reason' => 'user_not_found']
+            );
             return [
                 'success' => false,
                 'error' => 'Invalid email or password'
@@ -160,6 +168,14 @@ class AuthController
         }
 
         if (!password_verify($password, $user['password_hash'])) {
+            $this->activityLog->log(
+                'auth.login_failed',
+                "Failed login attempt for '{$user['email']}'",
+                (int)$user['id'],
+                'user',
+                (int)$user['id'],
+                ['email' => $user['email'], 'reason' => 'bad_password']
+            );
             return [
                 'success' => false,
                 'error' => 'Invalid email or password'
@@ -167,16 +183,23 @@ class AuthController
         }
 
         if ($user['email_verified_at'] === null) {
+            $this->activityLog->log(
+                'auth.login_failed',
+                "Failed login attempt for unverified email '{$user['email']}'",
+                (int)$user['id'],
+                'user',
+                (int)$user['id'],
+                ['email' => $user['email'], 'reason' => 'unverified']
+            );
             return [
                 'success' => false,
                 'error' => 'Please verify your email before logging in'
             ];
         }
 
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        
+        \App\Services\SessionService::start();
+        \App\Services\SessionService::regenerate();
+
         $_SESSION['user'] = [
             'id' => $user['id'],
             'email' => $user['email'],
@@ -184,6 +207,7 @@ class AuthController
             'avatar_url' => $user['avatar_url'] ?? null,
             'role' => $user['role'] ?? 'user',
         ];
+        $_SESSION['last_activity'] = time();
 
         // Log successful login
         $this->activityLog->log(

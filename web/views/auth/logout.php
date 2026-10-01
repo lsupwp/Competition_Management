@@ -2,7 +2,7 @@
 // Route: /auth/logout
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-session_start();
+\App\Services\SessionService::start();
 
 // Capture user info before destroying session
 $userId = $_SESSION['user']['id'] ?? null;

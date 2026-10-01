@@ -2,7 +2,7 @@
 // Route: /team/manage or /team/manage?id={encoded_team_id}
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (!isset($_SESSION['user'])) {
     header('Location: /auth/login');
@@ -10,6 +10,7 @@ if (!isset($_SESSION['user'])) {
 }
 
 $title = 'Manage Teams - Team Competition';
+$appUrl = rtrim(\App\Services\Env::get('APP_URL', 'http://localhost:8000') ?? 'http://localhost:8000', '/');
 
 $teamController = new \App\Controllers\TeamController();
 
@@ -151,15 +152,15 @@ if ($selectedTeamId) {
 ob_start();
 ?>
 <div class="container mx-auto px-4 py-8 max-w-6xl">
-    <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold">
+    <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
+        <h1 class="text-2xl sm:text-3xl font-bold break-words min-w-0">
             <?php if ($selectedTeam): ?>
                 <a href="/team/manage" class="link link-hover">Manage Teams</a> / <?= htmlspecialchars($selectedTeam['name']) ?>
             <?php else: ?>
                 Manage Teams
             <?php endif; ?>
         </h1>
-        <a href="/team/create" class="btn btn-primary">Create New Team</a>
+        <a href="/team/create" class="btn btn-primary w-full sm:w-auto shrink-0">Create New Team</a>
     </div>
 
     <?php if (isset($_SESSION['flash_success'])): ?>
@@ -204,10 +205,10 @@ ob_start();
                     <h3 class="font-bold">Invite Token Generated!</h3>
                     <div class="text-xs mt-2">
                         <p class="mb-2">Share this link with the person you want to invite:</p>
-                        <div class="flex gap-2">
-                            <input type="text" value="http://localhost:8000/team/join?token=<?= htmlspecialchars($_SESSION['invite_token']) ?>" 
-                                   class="input input-bordered input-sm flex-1" readonly id="inviteLink" />
-                            <button class="btn btn-sm btn-primary" onclick="copyInviteLink()">Copy</button>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" value="<?= htmlspecialchars($appUrl) ?>/team/join?token=<?= htmlspecialchars($_SESSION['invite_token']) ?>" 
+                                   class="input input-bordered input-sm flex-1 min-w-0" readonly id="inviteLink" />
+                            <button class="btn btn-sm btn-primary shrink-0" onclick="copyInviteLink()">Copy</button>
                         </div>
                         <p class="mt-2 opacity-70">Token: <code class="text-xs"><?= htmlspecialchars($_SESSION['invite_token']) ?></code></p>
                         <p class="opacity-70">Expires: <?= date('M d, Y H:i', strtotime($_SESSION['invite_token_expires'])) ?></p>
@@ -223,10 +224,10 @@ ob_start();
         <!-- Team Detail View -->
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="flex items-center gap-4">
-                        <div class="avatar">
-                            <div class="w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
+                <div class="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-start mb-4">
+                    <div class="flex items-start gap-3 sm:gap-4 min-w-0">
+                        <div class="avatar shrink-0">
+                            <div class="w-14 sm:w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
                                 <?php if (!empty($selectedTeam['logo_url'])): ?>
                                     <img src="<?= htmlspecialchars($selectedTeam['logo_url']) ?>" alt="<?= htmlspecialchars($selectedTeam['name']) ?>" class="w-full h-full object-cover" />
                                 <?php else: ?>
@@ -234,17 +235,17 @@ ob_start();
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <div>
-                            <h2 class="card-title text-2xl"><?= htmlspecialchars($selectedTeam['name']) ?></h2>
-                            <p class="text-sm text-base-content/70"><?= htmlspecialchars($selectedTeam['description'] ?? '') ?></p>
-                            <div class="flex gap-2 mt-2">
+                        <div class="min-w-0">
+                            <h2 class="card-title text-xl sm:text-2xl break-words"><?= htmlspecialchars($selectedTeam['name']) ?></h2>
+                            <p class="text-sm text-base-content/70 break-words"><?= htmlspecialchars($selectedTeam['description'] ?? '') ?></p>
+                            <div class="flex flex-wrap gap-2 mt-2">
                                 <span class="badge badge-outline"><?= $selectedTeam['member_count'] ?>/<?= $selectedTeam['max_members'] ?> members</span>
                                 <span class="badge badge-primary badge-sm">Your role: <?= ucfirst($selectedTeam['user_role']) ?></span>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap gap-2">
                         <?php if ($selectedTeam['user_role'] === 'owner' || $selectedTeam['user_role'] === 'admin'): ?>
                             <button class="btn btn-primary btn-sm" onclick="inviteModal.showModal()">
                                 Invite Member
@@ -263,12 +264,12 @@ ob_start();
 
                 <div class="divider"></div>
 
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-4">
                     <h3 class="font-bold text-lg">Members</h3>
-                    <form method="GET" class="flex gap-2">
+                    <form method="GET" class="flex flex-wrap gap-2 w-full sm:w-auto">
                         <input type="hidden" name="id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
                         <input type="text" name="member_search" value="<?= htmlspecialchars($memberSearch) ?>" 
-                               placeholder="Search members..." class="input input-bordered input-sm w-64" />
+                               placeholder="Search members..." class="input input-bordered input-sm w-full sm:w-64" />
                         <button type="submit" class="btn btn-sm btn-primary">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -460,9 +461,10 @@ ob_start();
                                         <div class="space-y-3">
                                             <h4 class="font-semibold text-sm">Active Invite Link:</h4>
                                             <div class="bg-base-200 p-3 rounded-lg">
-                                                <div class="flex items-center gap-2 mb-2">
-                                                    <input type="text" value="http://localhost:8000/team/join?token=<?= htmlspecialchars($tokenData['token']) ?>" 
-                                                           class="input input-bordered input-sm flex-1 text-xs" readonly id="token_<?= htmlspecialchars($tokenData['token']) ?>" />
+                                                <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                                                    <input type="text" value="<?= htmlspecialchars($appUrl) ?>/team/join?token=<?= htmlspecialchars($tokenData['token']) ?>" 
+                                                           class="input input-bordered input-sm flex-1 min-w-0 text-xs" readonly id="token_<?= htmlspecialchars($tokenData['token']) ?>" />
+                                                    <div class="flex flex-wrap gap-2 shrink-0">
                                                     <button class="btn btn-sm btn-primary" onclick="copyToken('token_<?= htmlspecialchars($tokenData['token']) ?>')">Copy</button>
                                                     <?php 
                                                     // Show revoke button if owner OR admin who created this token
@@ -482,6 +484,7 @@ ob_start();
                                                             <button type="submit" class="btn btn-sm btn-error btn-outline">Revoke</button>
                                                         </form>
                                                     <?php endif; ?>
+                                                    </div>
                                                 </div>
                                                 <div class="text-xs opacity-70">
                                                     Expires: <?= date('M d, Y H:i', strtotime($tokenData['expires_at'])) ?>

@@ -2,7 +2,7 @@
 // Route: /event
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (!isset($_SESSION['user'])) {
     header('Location: /auth/login');
@@ -89,9 +89,9 @@ ob_start();
         <?php unset($_SESSION['flash_error']); ?>
     <?php endif; ?>
 
-    <div class="flex justify-between items-center mb-8">
-        <div>
-            <h1 class="text-3xl font-bold">
+    <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
+        <div class="min-w-0">
+            <h1 class="text-2xl sm:text-3xl font-bold break-words">
                 <?php if ($filterTeam): ?>
                     Events — <?= htmlspecialchars($filterTeam['name']) ?>
                 <?php else: ?>
@@ -105,7 +105,7 @@ ob_start();
             <?php endif; ?>
         </div>
         <?php if ($canCreateEvent): ?>
-            <a href="/event/create" class="btn btn-primary">Create Event</a>
+            <a href="/event/create" class="btn btn-primary w-full sm:w-auto shrink-0">Create Event</a>
         <?php endif; ?>
     </div>
 
@@ -224,7 +224,7 @@ ob_start();
             <?php foreach ($events as $event): ?>
                 <div class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
                     <div class="card-body">
-                        <div class="flex justify-between items-start">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                             <div class="flex-1">
                                 <h2 class="card-title text-2xl mb-2">
                                     <a href="/event/view?id=<?= \App\Services\IdEncoder::encode($event['id']) ?>" class="link link-hover">
@@ -270,7 +270,7 @@ ob_start();
                                     </div>
                                 <?php endif; ?>
                                 
-                                <div class="flex items-center gap-4 text-sm text-base-content/70">
+                                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-base-content/70">
                                     <div class="flex items-center gap-1">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />

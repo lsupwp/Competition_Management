@@ -2,7 +2,7 @@
 // Route: /event/calendar
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (!isset($_SESSION['user'])) {
     header('Location: /auth/login');
@@ -56,7 +56,7 @@ ob_start();
         </div>
         <div class="flex flex-wrap gap-2 items-center">
             <form method="GET" class="flex gap-2 items-center">
-                <select name="team" class="select select-bordered select-sm" onchange="this.form.submit()">
+                <select name="team" class="select select-bordered select-sm w-full sm:w-auto max-w-xs" onchange="this.form.submit()">
                     <option value="">All teams</option>
                     <?php foreach ($userTeams as $team): ?>
                         <option value="<?= htmlspecialchars(\App\Services\IdEncoder::encode($team['id'])) ?>"
@@ -72,7 +72,7 @@ ob_start();
 
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body p-2 md:p-4">
-            <div id="event-calendar" class="min-h-[70vh]"></div>
+            <div id="event-calendar" class="min-h-[60vh] overflow-x-auto"></div>
         </div>
     </div>
 </div>
@@ -116,9 +116,30 @@ ob_start();
         color: #e5e7eb !important;
     }
     #event-calendar.fc .fc-toolbar-title {
-        font-size: 1.25rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: inherit;
+    }
+    @media (max-width: 640px) {
+        #event-calendar.fc .fc-toolbar {
+            flex-direction: column;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+        #event-calendar.fc .fc-toolbar-chunk {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+        #event-calendar.fc .fc-toolbar-title {
+            font-size: 1rem;
+            text-align: center;
+        }
+        #event-calendar.fc .fc-button {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
     }
     #event-calendar.fc .fc-button {
         background: oklch(0.7 0.15 198);

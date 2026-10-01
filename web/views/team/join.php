@@ -2,7 +2,7 @@
 // Route: /team/join
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (!isset($_SESSION['user'])) {
     $_SESSION['redirect_after_login'] = '/team/join' . (isset($_GET['token']) ? '?token=' . urlencode($_GET['token']) : '');

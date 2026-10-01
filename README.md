@@ -276,14 +276,19 @@ include_once __DIR__ . '/../templates/layout.php';
 | `APP_NAME` | Application name | team_comp_app |
 | `APP_PORT` | Web port | 8000 |
 | `APP_URL` | Public app URL (set to your ngrok HTTPS URL when tunneling) | http://localhost:8000 |
-| `APP_TIMEZONE` | App/DB timezone | Asia/Bangkok |
+| `APP_TIMEZONE` | App/DB timezone (compose aliases this to container `TZ`) | Asia/Bangkok |
 | `APP_KEY` | Encryption key for IDs | (auto-generated) |
-| `DB_HOST` | Database host — keep `mariadb` with Docker (ngrok tunnels HTTP only) | mariadb |
-| `DB_PORT` | Database port | 3306 |
-| `DB_DATABASE` | Database name | team_competition |
-| `DB_USERNAME` | Database user | app_user |
-| `DB_PASSWORD` | Database password | app_password |
-| `PMA_PORT` | phpMyAdmin port | 8080 |
+| `SESSION_TIMEOUT` | Idle session timeout in seconds | 1800 |
+| `DB_HOST` | DB host; keep `mariadb` with Docker (also aliased to `PMA_HOST`) | mariadb |
+| `DB_PORT` | DB port (also aliased to phpMyAdmin `PMA_PORT`) | 3306 |
+| `DB_DATABASE` | Database name (aliased to MariaDB `MYSQL_DATABASE`) | team_competition |
+| `DB_USERNAME` | DB user (aliased to MariaDB `MYSQL_USER`) | app_user |
+| `DB_PASSWORD` | DB password (aliased to MariaDB `MYSQL_PASSWORD`) | app_password |
+| `DB_ROOT_PASSWORD` | MariaDB root password (aliased to `MYSQL_ROOT_PASSWORD`) | - |
+| `DB_CONTAINER_NAME` | MariaDB container name | team_comp_db |
+| `DB_EXTERNAL_PORT` | Host-mapped MariaDB port | 3306 |
+| `PMA_CONTAINER_NAME` | phpMyAdmin container name | team_comp_pma |
+| `PMA_EXTERNAL_PORT` | phpMyAdmin web port | 8080 |
 | `SMTP_HOST` | SMTP server | smtp.gmail.com |
 | `SMTP_PORT` | SMTP port | 587 |
 | `SMTP_USERNAME` | SMTP username | - |

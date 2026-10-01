@@ -406,6 +406,14 @@ class TeamController
             }
             
             $logoUrl = '/uploads/teams/' . $filename;
+            $this->activityLog->log(
+                'file.upload',
+                "Uploaded team logo '$filename'",
+                $userId,
+                'team',
+                null,
+                ['filename' => $filename, 'mime' => $fileType, 'size' => $fileSize, 'path' => $logoUrl]
+            );
         }
 
         // Insert team
@@ -613,6 +621,14 @@ class TeamController
             }
             
             $logoUrl = '/uploads/teams/' . $filename;
+            $this->activityLog->log(
+                'file.upload',
+                "Uploaded team logo '$filename'",
+                $userId,
+                'team',
+                $teamId,
+                ['filename' => $filename, 'mime' => $fileType, 'size' => $fileSize, 'path' => $logoUrl]
+            );
         }
 
         // Update team

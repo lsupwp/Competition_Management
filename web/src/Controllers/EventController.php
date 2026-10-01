@@ -420,7 +420,8 @@ class EventController
         } catch (\Exception $e) {
             // Rollback on error
             $this->db->rollback();
-            return ['success' => false, 'error' => $e->getMessage()];
+            error_log('event.create failed: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to create event. Please try again.'];
         }
     }
 
@@ -557,7 +558,8 @@ class EventController
 
         } catch (\Exception $e) {
             $this->db->rollback();
-            return ['success' => false, 'error' => $e->getMessage()];
+            error_log('event.update failed: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to update event. Please try again.'];
         }
     }
 
@@ -1030,7 +1032,8 @@ class EventController
             return ['success' => true, 'message' => 'Event deleted successfully'];
         } catch (\Exception $e) {
             $this->db->rollback();
-            return ['success' => false, 'error' => $e->getMessage()];
+            error_log('event.delete failed: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to delete event. Please try again.'];
         }
     }
 

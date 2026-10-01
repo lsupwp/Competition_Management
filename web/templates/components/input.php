@@ -3,11 +3,11 @@
 // Usage: include __DIR__ . '/input.php'; with $inputName, $inputLabel, $inputType
 // Optional: $inputTogglePassword = true (for password fields with eye icon)
 ?>
-<div class="form-control flex flex-row items-center gap-4">
-    <label class="label w-32 flex-shrink-0">
+<div class="form-control flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 w-full">
+    <label class="label sm:w-32 flex-shrink-0 py-0 justify-start">
         <span class="label-text"><?= $inputLabel ?? 'Label' ?></span>
     </label>
-    <div class="flex-1 relative">
+    <div class="flex-1 relative w-full min-w-0">
         <input
             type="<?= $inputType ?? 'text' ?>"
             name="<?= $inputName ?? 'input' ?>"

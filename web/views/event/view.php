@@ -2,7 +2,7 @@
 // Route: /event/view
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (!isset($_SESSION['user'])) {
     header('Location: /auth/login');
@@ -71,15 +71,15 @@ ob_start();
 
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h1 class="text-3xl font-bold mb-2"><?= htmlspecialchars($event['title']) ?></h1>
-                    <div class="flex items-center gap-4 text-sm text-base-content/70">
+            <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start mb-4">
+                <div class="min-w-0">
+                    <h1 class="text-2xl sm:text-3xl font-bold mb-2 break-words"><?= htmlspecialchars($event['title']) ?></h1>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-base-content/70">
                         <span>Created by <?= htmlspecialchars($event['creator_name']) ?></span>
-                        <span>•</span>
+                        <span class="hidden sm:inline">•</span>
                         <span><?= date('M d, Y', strtotime($event['created_at'])) ?></span>
                         <?php if (!empty($event['team_id']) && !empty($event['team_name'])): ?>
-                            <span>•</span>
+                            <span class="hidden sm:inline">•</span>
                             <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($event['team_id'])) ?>"
                                class="link link-hover text-primary">
                                 <?= htmlspecialchars($event['team_name']) ?>
@@ -87,7 +87,7 @@ ob_start();
                         <?php endif; ?>
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2 shrink-0">
                     <?php
                     $viewerId = (int)$_SESSION['user']['id'];
                     $canEditEvent = $eventController->canUserEditEvent($eventId, $viewerId);

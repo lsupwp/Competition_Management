@@ -12,18 +12,11 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
-    environment:
-      - TZ=${APP_TIMEZONE:-Asia/Bangkok}
-      - APP_TIMEZONE=${APP_TIMEZONE:-Asia/Bangkok}
-      - APP_URL=${APP_URL}
-      - APP_KEY=${APP_KEY}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_DATABASE=${DB_DATABASE}
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
     env_file:
       - .env
+    environment:
+      # Alias only — values come from .env once
+      TZ: ${APP_TIMEZONE}
     networks:
       - app_network
 
@@ -35,12 +28,14 @@ services:
     command:
       - --event-scheduler=ON
       - --default-time-zone=+07:00
+    env_file:
+      - .env
     environment:
-      - TZ=${APP_TIMEZONE:-Asia/Bangkok}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${DB_DATABASE}
-      - MYSQL_USER=${DB_USERNAME}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
+      TZ: ${APP_TIMEZONE}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./database.sql:/docker-entrypoint-initdb.d/01-database.sql:ro
@@ -56,11 +51,13 @@ services:
     image: phpmyadmin/phpmyadmin:latest
     container_name: ${PMA_CONTAINER_NAME}
     ports:
-      - "${PMA_PORT}:80"
+      - "${PMA_EXTERNAL_PORT}:80"
+    env_file:
+      - .env
     environment:
-      - TZ=${APP_TIMEZONE:-Asia/Bangkok}
-      - PMA_HOST=${DB_HOST}
-      - PMA_PORT=${DB_PORT}
+      TZ: ${APP_TIMEZONE}
+      PMA_HOST: ${DB_HOST}
+      PMA_PORT: ${DB_PORT}
     depends_on:
       mariadb:
         condition: service_healthy

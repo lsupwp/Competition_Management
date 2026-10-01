@@ -2,7 +2,7 @@
 // Main layout template
 // Usage: include __DIR__ . '/../templates/layout.php';
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    \App\Services\SessionService::start();
 }
 ?>
 <!DOCTYPE html>
@@ -11,6 +11,7 @@ if (session_status() === PHP_SESSION_NONE) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $title ?? 'Team Competition' ?></title>
+    <link rel="icon" href="/assets/logo.png" type="image/png" />
 
     <!-- Tailwind CSS v4 (Play CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -19,6 +20,10 @@ if (session_status() === PHP_SESSION_NONE) {
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
 
+    <?php if (!empty($extraHead)): ?>
+        <?= $extraHead ?>
+    <?php endif; ?>
+
     <style type="text/tailwindcss">
         @theme {
             --color-primary: oklch(0.7 0.15 198);
@@ -26,11 +31,20 @@ if (session_status() === PHP_SESSION_NONE) {
             --color-primary-content: oklch(0.98 0 0);
         }
     </style>
+    <style>
+        /* Site-wide mobile safety */
+        html, body { overflow-x: hidden; }
+        img, video, canvas, svg { max-width: 100%; height: auto; }
+        .modal-box { width: min(100% - 2rem, 32rem); max-width: 100%; }
+        @media (max-width: 640px) {
+            .table { font-size: 0.875rem; }
+        }
+    </style>
 </head>
-<body class="min-h-screen bg-base-200 flex flex-col">
+<body class="min-h-screen bg-base-200 flex flex-col overflow-x-hidden">
     <?php include_once __DIR__ . '/header.php'; ?>
 
-    <main class="container mx-auto p-4 flex-1">
+    <main class="<?= !empty($fullBleed) ? 'flex-1 w-full min-w-0' : 'flex-1 w-full min-w-0 px-3 sm:px-4 py-4' ?>">
         <?= $content ?? '' ?>
     </main>
 

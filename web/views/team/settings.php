@@ -2,7 +2,7 @@
 // Route: /team/settings?id={team_id}
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-session_start();
+\App\Services\SessionService::start();
 
 if (!isset($_SESSION['user'])) {
     header('Location: /auth/login');
@@ -104,9 +104,11 @@ ob_start();
 ?>
 <div class="container mx-auto px-4 py-8 max-w-4xl">
     <div class="mb-8">
-        <h1 class="text-3xl font-bold">
-            <a href="/team/manage" class="link link-hover">Manage Teams</a> / 
-            <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($teamId) ?>" class="link link-hover"><?= htmlspecialchars($selectedTeam['name']) ?></a> / 
+        <h1 class="text-xl sm:text-3xl font-bold break-words">
+            <a href="/team/manage" class="link link-hover">Manage Teams</a>
+            <span class="text-base-content/40">/</span>
+            <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($teamId) ?>" class="link link-hover"><?= htmlspecialchars($selectedTeam['name']) ?></a>
+            <span class="text-base-content/40">/</span>
             Settings
         </h1>
     </div>
@@ -209,7 +211,7 @@ ob_start();
         <div class="card-body">
             <h2 class="card-title text-xl mb-4 text-error">Danger Zone</h2>
             
-            <div class="flex items-center justify-between">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <div class="font-semibold">Delete Team</div>
                     <div class="text-sm text-base-content/70">Once deleted, this team cannot be recovered</div>
@@ -221,7 +223,7 @@ ob_start();
                       data-confirm-class="btn-error">
                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                     <input type="hidden" name="action" value="delete_team">
-                    <button type="submit" class="btn btn-error btn-outline">
+                    <button type="submit" class="btn btn-error btn-outline w-full sm:w-auto">
                         Delete Team
                     </button>
                 </form>

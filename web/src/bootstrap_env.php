@@ -34,7 +34,15 @@ $isHttps = str_starts_with($appUrl, 'https://')
     || $forwardedProto === 'https'
     || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
 
-if ($isHttps) {
-    ini_set('session.cookie_secure', '1');
+// Session cookie hardening (must run before session_start)
+if (class_exists(App\Services\SessionService::class)) {
+    App\Services\SessionService::configure();
+} else {
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.cookie_httponly', '1');
     ini_set('session.cookie_samesite', 'Lax');
+    if ($isHttps) {
+        ini_set('session.cookie_secure', '1');
+    }
 }
