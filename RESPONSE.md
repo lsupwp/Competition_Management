@@ -2,28 +2,31 @@
 
 | Field | Value |
 |-------|--------|
-| Source report | `REPORT.md` (settings audit 2026-10-01) |
+| Source report | `REPORT.md` (SET-05/06 verified 2026-10-01) |
 | Response date | 2026-10-01 |
 | Branch | `auth` |
 
 ---
 
-## This pass
+## Verdict
 
-| ID | Status | Action |
-|----|--------|--------|
-| **SET-05** | **Fixed** | Escape all input component attributes with `htmlspecialchars(..., ENT_QUOTES)` |
-| **SET-06** | **Fixed** | Restore `www-data` ownership on `uploads/` every container start; clearer writable errors |
-| SEC-02 | Accepted | won't fix |
-| SEC-08 | Deferred | backlog |
+**No open code findings.** SET-05 and SET-06 verified fixed live.
 
-Prior auth findings remain closed (verified in earlier passes).
+| ID | Status |
+|----|--------|
+| Auth suite (SEC-01, 03–07, 09, AUTH-10/11) | **Fixed** |
+| SET-05, SET-06 | **Fixed** (verified) |
+| SEC-02 | **Accepted / won't fix** |
+| SEC-08 | **Deferred** |
+
+### Optional follow-up (this pass)
+
+Report suggested `X-Content-Type-Options: nosniff` on `/uploads/*`. Running image lacked `mod_headers`; entrypoint now enables it, and Apache adds an explicit `/uploads/` `LocationMatch`.
 
 ---
 
 ## Checklist
 
-- [x] SET-05 Settings name attribute encoding
-- [x] SET-06 Avatar upload directory permissions
-- [x] SEC-02 accepted feature
-- [ ] SEC-08 UUID/ULID (optional)
+- [x] All settings + auth items closed or accepted
+- [x] Uploads `nosniff` header wiring
+- [ ] SEC-08 UUID/ULID (optional backlog)

@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Ensure security modules are enabled (safe if already on)
+a2enmod rewrite headers >/dev/null 2>&1 || true
+
 if [ ! -d "vendor" ]; then
     echo "Installing composer dependencies..."
     composer install --no-interaction --optimize-autoloader

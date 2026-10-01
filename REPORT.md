@@ -10,6 +10,7 @@
 | Response verify | 2026-10-01 (AUTH-10/11, SEC-07) |
 | AUTH-11 GET polish | 2026-10-01 — verified invalid tokens no longer show form |
 | Settings form audit | 2026-10-01 |
+| SET-05 / SET-06 verify | 2026-10-01 — both fixed on live |
 | Audience | Development / engineering |
 | Method | Authenticated black-box review; auth + `/settings` form review |
 
@@ -23,12 +24,10 @@
 
 | Priority | Item |
 |----------|------|
-| Medium | **SET-05** — Stored HTML/JS injection via profile **name** in Settings input `value` (attribute breakout) |
-| Low | **SET-06** — Avatar upload fails to save (valid PNG → “Failed to save uploaded file”) |
 | Accepted risk | **SEC-02** — Demo/admin creds on public ngrok (won't fix) |
 | Low (backlog) | **SEC-08** — Sequential opaque IDs (deferred) |
 
-Settings forms otherwise look solid: CSRF enforced, email/password changes require current password, password policy applied on change, unauth access blocked.
+**Settings (verified 2026-10-01):** SET-05 attribute encoding and SET-06 avatar upload are **fixed**. CSRF, password/email change gates, and upload type checks remain solid.
 
 ---
 
@@ -58,8 +57,8 @@ Settings forms otherwise look solid: CSRF enforced, email/password changes requi
 | SEC-09 | Low | **Fixed** | Login timing skew |
 | AUTH-10 | Low | **Fixed** | Logout via GET enables logout CSRF |
 | AUTH-11 | Medium | **Fixed** | Password reset completion route not found (404) |
-| SET-05 | Medium | **Open** | Stored XSS / HTML injection in Settings name `value` |
-| SET-06 | Low | **Open** | Avatar upload save failure (functional) |
+| SET-05 | Medium | **Fixed** | Stored XSS / HTML injection in Settings name `value` |
+| SET-06 | Low | **Fixed** | Avatar upload save failure (functional) |
 
 ---
 
@@ -210,45 +209,17 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 | Extra params (`user_id`, `role`, `is_admin`) | No privilege escalation to `/activity` |
 | Avatar SVG / PHP / fake PNG | Rejected as invalid type |
 
-### SET-05 — Medium — Stored HTML/JS injection in Settings name field — **OPEN**
+### SET-05 — Medium — Stored HTML/JS injection in Settings name field — **FIXED**
 
-**Component:** `/settings` → Edit Profile → `name`  
-
-**Description**  
-Display contexts (e.g. navbar `<span class="text-sm font-bold">…</span>`) escape the name correctly.  
-The **Settings input** does **not** encode quotes when echoing into `value="…"`:
-
-```html
-<input ... value=""><b data-set="xss">SETTAG</b>" required />
-```
-
-A stored name containing `"` breaks out of the attribute and injects HTML into the Settings page for that user.
-
-**Impact**  
-Script/HTML runs in the victim’s session when they open **Account Settings**. With CSRF already fixed, this is primarily **self-XSS** / social-engineering, but still a real encoding bug and becomes worse if any admin “edit user” UI reuses the same pattern.
-
-**Recommendation**  
-- Escape for HTML attribute context (`htmlspecialchars($name, ENT_QUOTES, 'UTF-8')`) everywhere `name` is printed into attributes.  
-- Prefer the same helper for all template outputs.  
-- Add a regression test: name containing `"` / `<` must not break markup.
-
-**Acceptance criteria**  
-After saving a name with quotes/angle brackets, Settings source shows only escaped entities inside `value="…"`, and no raw injected tags.
+**Verify (2026-10-01):** Name containing `"><b…>` is stored but echoed into the input as entities only, e.g.  
+`value="&quot;&gt;&lt;b data-set=&quot;xss&quot;&gt;SETTAG&lt;/b&gt;"` — no attribute breakout / raw tags.
 
 ---
 
-### SET-06 — Low — Avatar upload fails to persist — **OPEN**
+### SET-06 — Low — Avatar upload fails to persist — **FIXED**
 
-**Component:** `/settings` avatar  
-
-**Description**  
-A minimal valid 1×1 PNG upload returned “Failed to save uploaded file.” while name update still succeeded. Existing avatar URL under `/uploads/avatars/…` returned 404/`text/html` in this environment.
-
-**Impact**  
-Broken profile photo feature; may indicate permissions/disk path issues in Docker/ngrok deploy (not a confirmed RCE).
-
-**Recommendation**  
-Check upload directory permissions, path config, and disk space; confirm served files use correct `Content-Type` and `X-Content-Type-Options: nosniff`.
+**Verify (2026-10-01):** Valid 1×1 PNG → “Name updated and Avatar updated successfully”;  
+`GET /uploads/avatars/avatar_…png` → `200 image/png` (real PNG bytes).
 
 ---
 
@@ -281,10 +252,9 @@ Check upload directory permissions, path config, and disk space; confirm served 
 
 ## 8. Recommended backlog order (updated)
 
-1. **SET-05** — Escape profile name in Settings input `value` (and any other attributes)  
-2. **SET-06** — Fix avatar save path/permissions  
-3. **SEC-08** — UUID/ULID when touching ID layer (optional)  
-4. **SEC-02** — If leaving course/demo context, rotate creds and lock the tunnel
+1. **SEC-08** — UUID/ULID when touching ID layer (optional)  
+2. **SEC-02** — If leaving course/demo context, rotate creds and lock the tunnel  
+3. Optional: add `X-Content-Type-Options: nosniff` on `/uploads/*` responses
 
 ---
 
@@ -302,8 +272,8 @@ Check upload directory permissions, path config, and disk space; confirm served 
 - [x] AUTH-10 CSRF-safe logout *(verified live)*  
 - [x] AUTH-11 Password reset completion route *(verified live; email body not read)*  
 - [x] AUTH-11 GET token validation *(verified live — invalid tokens hide form)*  
-- [ ] SET-05 Escape `name` in Settings attribute context  
-- [ ] SET-06 Avatar upload save path/permissions  
+- [x] SET-05 Escape `name` in Settings attribute context *(verified live)*  
+- [x] SET-06 Avatar upload save path/permissions *(verified live)*  
 
 ---
 
@@ -323,4 +293,4 @@ Disposable registrations used `*@example.com` addresses during policy/enum tests
 ---
 
 **Prepared for:** Development team  
-**Action requested:** Fix **SET-05** next; then SET-06. SEC-02 remains accepted demo risk; SEC-08 remains backlog.
+**Action requested:** Auth + settings code items closed aside from SEC-08 backlog and SEC-02 accepted demo risk.
