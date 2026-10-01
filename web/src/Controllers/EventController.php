@@ -130,6 +130,57 @@ class EventController
     }
 
     /**
+     * Teams for /event index: membership teams + visible-event counts
+     */
+    public function getTeamsForEventIndex(int $userId): array
+    {
+        $eventVisibility = "
+            e.created_by = ?
+            OR EXISTS (
+                SELECT 1 FROM event_visibility ev
+                WHERE ev.event_id = e.id AND ev.user_id = ? AND ev.deleted_at IS NULL
+            )
+            OR EXISTS (
+                SELECT 1 FROM event_registrations er
+                WHERE er.event_id = e.id AND er.user_id = ? AND er.deleted_at IS NULL AND er.status != 'cancelled'
+            )
+            OR EXISTS (
+                SELECT 1 FROM team_members tm2
+                WHERE tm2.team_id = e.team_id
+                  AND tm2.user_id = ?
+                  AND tm2.role = 'owner'
+                  AND tm2.deleted_at IS NULL
+            )
+        ";
+
+        $stmt = $this->db->prepare("
+            SELECT t.id, t.name, t.description, t.logo_url, tm.role,
+                   (
+                       SELECT COUNT(*)
+                       FROM events e
+                       WHERE e.team_id = t.id
+                         AND e.deleted_at IS NULL
+                         AND ({$eventVisibility})
+                   ) AS event_count
+            FROM teams t
+            INNER JOIN team_members tm ON tm.team_id = t.id
+            WHERE tm.user_id = ?
+              AND tm.deleted_at IS NULL
+              AND t.deleted_at IS NULL
+            ORDER BY t.name
+        ");
+        $stmt->bind_param('iiiii', $userId, $userId, $userId, $userId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $teams = [];
+        while ($row = $result->fetch_assoc()) {
+            $teams[] = $row;
+        }
+        $stmt->close();
+        return $teams;
+    }
+
+    /**
      * Get event by ID
      */
     public function getEventById(int $eventId): ?array

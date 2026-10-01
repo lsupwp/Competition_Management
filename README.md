@@ -51,7 +51,7 @@
   - แสดง tags แบบ badge สีสวยงาม
 - Pagination สำหรับรายการงาน
 - แสดง event dates และ tags ในหน้ารายการ
-- คลิกชื่อทีม (บนรายการงาน / หน้ารายละเอียด / ตารางลงทะเบียน) เพื่อดู event ทั้งหมดของทีมนั้น (`/event?team=...`) — ยังคงกรองตามสิทธิ์การมองเห็น
+- หน้า `/event` แสดงรายชื่อทีมที่ user เป็นสมาชิกก่อน — คลิกทีมแล้วจึงแสดงรายการ event ของทีมนั้น (`/event?team=...`)
 - Soft-deleted rows จะถูก hard-delete อัตโนมัติทุก 5 นาที (MariaDB EVENT)
 - Timezone: Asia/Bangkok (GMT+7)
 ### User Management
@@ -203,7 +203,7 @@ File-based routing - filename = URL path:
 | `web/views/team/create.php` | `/team/create` | Create team |
 | `web/views/team/settings.php` | `/team/settings` | Team settings |
 | `web/views/team/join.php` | `/team/join` | Join team |
-| `web/views/event/index.php` | `/event` | Event list (`?team=` filters by team) |
+| `web/views/event/index.php` | `/event` | Team list; `?team=` shows that team's events |
 | `web/views/event/view.php` | `/event/view` | Event detail |
 | `web/views/event/create.php` | `/event/create` | Create event (owner/admin only) |
 | `web/views/event/edit.php` | `/event/edit` | Edit event (creator only) |

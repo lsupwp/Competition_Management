@@ -31,18 +31,22 @@ if (!empty($_GET['team'])) {
     }
 }
 
-$eventData = $eventController->getEvents($page, $perPage, $userId, $filterTeamId);
-$events = $eventData['events'];
-$totalPages = $eventData['totalPages'];
-$total = $eventData['total'];
 $canCreateEvent = !empty($eventController->getUserManagedTeams($userId));
-
-$queryBase = $filterTeamId
-    ? '?team=' . urlencode(\App\Services\IdEncoder::encode($filterTeamId)) . '&'
-    : '?';
+$teams = [];
+$events = [];
+$totalPages = 1;
+$total = 0;
+$queryBase = '?';
 
 if ($filterTeam) {
     $title = 'Events — ' . $filterTeam['name'] . ' - Team Competition';
+    $eventData = $eventController->getEvents($page, $perPage, $userId, $filterTeamId);
+    $events = $eventData['events'];
+    $totalPages = $eventData['totalPages'];
+    $total = $eventData['total'];
+    $queryBase = '?team=' . urlencode(\App\Services\IdEncoder::encode($filterTeamId)) . '&';
+} else {
+    $teams = $eventController->getTeamsForEventIndex($userId);
 }
 
 ob_start();
@@ -72,7 +76,9 @@ ob_start();
                 <?php endif; ?>
             </h1>
             <?php if ($filterTeam): ?>
-                <a href="/event" class="link link-hover text-sm">← All events</a>
+                <a href="/event" class="link link-hover text-sm">← Back to teams</a>
+            <?php else: ?>
+                <p class="text-sm text-base-content/70 mt-1">Select a team to view its events</p>
             <?php endif; ?>
         </div>
         <?php if ($canCreateEvent): ?>
@@ -80,18 +86,65 @@ ob_start();
         <?php endif; ?>
     </div>
 
-    <?php if (empty($events)): ?>
+    <?php if (!$filterTeam): ?>
+        <?php if (empty($teams)): ?>
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body text-center py-16">
+                    <h2 class="text-2xl font-bold mb-4">No teams yet</h2>
+                    <p class="text-base-content/70 mb-6">Join or create a team to see events</p>
+                    <a href="/team/manage" class="btn btn-primary">Go to Teams</a>
+                </div>
+            </div>
+        <?php else: ?>
+            <div class="grid gap-4 md:grid-cols-2">
+                <?php foreach ($teams as $team): ?>
+                    <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($team['id'])) ?>"
+                       class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
+                        <div class="card-body">
+                            <div class="flex items-center gap-4">
+                                <?php if (!empty($team['logo_url'])): ?>
+                                    <div class="avatar">
+                                        <div class="w-14 rounded-full">
+                                            <img src="<?= htmlspecialchars($team['logo_url']) ?>" alt="">
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="avatar placeholder">
+                                        <div class="bg-primary text-primary-content w-14 rounded-full">
+                                            <span class="text-xl"><?= htmlspecialchars(mb_substr($team['name'], 0, 1)) ?></span>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="flex-1 min-w-0">
+                                    <h2 class="card-title text-xl"><?= htmlspecialchars($team['name']) ?></h2>
+                                    <?php if (!empty($team['description'])): ?>
+                                        <p class="text-sm text-base-content/70 line-clamp-2">
+                                            <?= htmlspecialchars($team['description']) ?>
+                                        </p>
+                                    <?php endif; ?>
+                                    <div class="flex flex-wrap gap-2 mt-2">
+                                        <span class="badge badge-ghost badge-sm"><?= htmlspecialchars(ucfirst($team['role'])) ?></span>
+                                        <span class="badge badge-primary badge-outline badge-sm">
+                                            <?= (int)$team['event_count'] ?> event<?= (int)$team['event_count'] === 1 ? '' : 's' ?>
+                                        </span>
+                                    </div>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-base-content/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+    <?php elseif (empty($events)): ?>
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body text-center py-16">
                 <h2 class="text-2xl font-bold mb-4">No events yet</h2>
-                <p class="text-base-content/70 mb-6">
-                    <?php if ($filterTeam): ?>
-                        No visible events for this team
-                    <?php else: ?>
-                        <?= $canCreateEvent ? 'Create your first event to get started' : 'No events are visible to you yet' ?>
-                    <?php endif; ?>
-                </p>
-                <?php if ($canCreateEvent && !$filterTeam): ?>
+                <p class="text-base-content/70 mb-6">No visible events for this team</p>
+                <?php if ($canCreateEvent): ?>
                     <a href="/event/create" class="btn btn-primary">Create Event</a>
                 <?php endif; ?>
             </div>
@@ -112,15 +165,6 @@ ob_start();
                                         <?= htmlspecialchars($event['title']) ?>
                                     </a>
                                 </h2>
-
-                                <?php if (!empty($event['team_id']) && !empty($event['team_name'])): ?>
-                                    <div class="mb-2">
-                                        <a href="/event?team=<?= urlencode(\App\Services\IdEncoder::encode($event['team_id'])) ?>"
-                                           class="badge badge-primary badge-outline link link-hover">
-                                            <?= htmlspecialchars($event['team_name']) ?>
-                                        </a>
-                                    </div>
-                                <?php endif; ?>
                                 
                                 <?php if (!empty($event['location'])): ?>
                                     <div class="flex items-center gap-2 text-sm text-base-content/70 mb-2">
