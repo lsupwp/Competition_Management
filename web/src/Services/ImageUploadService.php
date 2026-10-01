@@ -66,7 +66,7 @@ class ImageUploadService
         }
 
         if (!is_writable($destinationDir)) {
-            @chmod($destinationDir, 0775);
+            @chmod($destinationDir, 0777);
         }
         if (!is_writable($destinationDir)) {
             error_log('ImageUploadService: directory not writable: ' . $destinationDir);

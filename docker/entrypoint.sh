@@ -9,9 +9,13 @@ if [ ! -d "vendor" ]; then
     composer install --no-interaction --optimize-autoloader
 fi
 
-# Always ensure upload dirs exist and are writable by Apache (www-data)
+# Upload dirs must be writable by Apache (www-data).
+# Bind mounts (WSL/Docker Desktop) often keep host UID after git checkout,
+# so chown alone is not enough — force directory mode so www-data can write.
 mkdir -p uploads/avatars uploads/teams
-chown -R www-data:www-data uploads
-chmod -R 775 uploads
+chown -R www-data:www-data uploads 2>/dev/null || true
+chmod -R u+rwX,g+rwX,o+rwX uploads 2>/dev/null || true
+find uploads -type d -exec chmod 777 {} \; 2>/dev/null || true
+find uploads -type f -exec chmod 666 {} \; 2>/dev/null || true
 
 exec "$@"
