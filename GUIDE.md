@@ -74,7 +74,7 @@
 - Opaque IDs in URLs (`IdEncoder`)
 - Soft delete ทุก table
 - Password hashing with Argon2id
-- Login rate limiting, password policy, security headers
+- Login rate limiting, password policy (min 8 chars, letter + number), security headers
 
 ---
 
@@ -102,6 +102,13 @@ cp .env.example .env
 ```bash
 docker compose up -d --build
 ```
+
+Optional public HTTPS tunnel (ngrok service in `compose.yaml`, `network_mode: host`):
+```bash
+# Set NGROK_AUTHTOKEN (and optional NGROK_URL) in .env, then:
+docker compose up -d ngrok
+```
+Set `APP_URL` to the same HTTPS ngrok URL. Inspector: http://localhost:4040
 
 4. Access the application
 - Web: http://localhost:8000
@@ -247,6 +254,9 @@ include_once __DIR__ . '/../templates/layout.php';
 | `APP_KEY` | Key for opaque IDs | (set in `.env`) |
 | `APP_DEBUG` | Show PHP errors when true | false |
 | `SESSION_TIMEOUT` | Idle session timeout (seconds) | 1800 |
+| `NGROK_AUTHTOKEN` | ngrok agent auth token | (from ngrok dashboard) |
+| `NGROK_URL` | Reserved HTTPS endpoint URL | https://untriced-hee-petrous.ngrok-free.dev |
+| `NGROK_CONTAINER_NAME` | ngrok container name | team_comp_ngrok |
 | `DB_HOST` | DB host (`mariadb` in Docker) | mariadb |
 | `DB_PORT` | DB port | 3306 |
 | `DB_DATABASE` | Database name | team_competition |
@@ -301,7 +311,7 @@ Logged areas include authentication, team CRUD/roles/invites, event CRUD/registr
 
 - CSRF on forms; logout is POST + CSRF
 - Opaque IDs in URLs
-- Argon2id password hashing + password policy
+- Argon2id password hashing + password policy (min 8, letter + number, common-password blocklist via `PasswordPolicyService`)
 - Email verification required for new accounts
 - Login rate limit (IP)
 - Security headers / reduced server fingerprint

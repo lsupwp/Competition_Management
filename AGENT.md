@@ -157,8 +157,13 @@ Team Competition Management System:
 - **sessions** - Session management
 
 ## Authentication System
+- **Password policy** (`web/src/Services/PasswordPolicyService.php`):
+  - Min 8 characters, max 128
+  - At least one letter and one number
+  - Rejects a blocklist of common passwords
+  - Used by register, reset-password, and settings change/add password
 - **Register flow:**
-  1. User fills form → validate data
+  1. User fills form → validate data (including password policy)
   2. Check if email exists:
      - If email exists and verified → deny registration
      - If email exists but not verified → overwrite (update) user data
@@ -223,7 +228,7 @@ Team Competition Management System:
   - **Has password** → Show "Change Password" form (current + new + confirm)
   - **No password** → Show "Add Password" form (new + confirm only)
 - **Validation:**
-  - Password min 8 characters
+  - Same password policy as register (min 8, letter + number, not common)
   - New password must match confirmation
   - Current password must be correct (for change)
 
@@ -275,6 +280,7 @@ $_SESSION['pending_email_change'] = [
   - Show Login button when user is not logged in
 
 ## Security
+- **Password policy:** min 8 / max 128, letter + number, common-password blocklist (`PasswordPolicyService`)
 - **CSRF Protection:** ทุก POST form ต้องมี CSRF token
   - ใช้ PHP session เก็บ token (หมดอายุ 2 ชั่วโมง)
   - `CsrfService::generateToken()` สร้าง token
