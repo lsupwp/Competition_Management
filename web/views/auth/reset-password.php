@@ -72,7 +72,7 @@ ob_start();
                 $inputTogglePassword = true;
                 include __DIR__ . '/../../templates/components/input.php';
                 ?>
-                <p class="text-xs text-base-content/60 -mt-2">At least 12 characters, with a letter and a number.</p>
+                <p class="text-xs text-base-content/60 -mt-2">At least 8 characters, with a letter and a number.</p>
 
                 <?php
                 $inputName = 'password_confirmation';
