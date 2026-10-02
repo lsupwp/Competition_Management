@@ -20,6 +20,8 @@ services:
     environment:
       # Alias only — values come from .env once
       TZ: ${APP_TIMEZONE}
+      # Overridden to NGROK_URL when compose.ngrok.yaml is included
+      APP_URL: ${APP_URL}
     networks:
       - app_network
 
@@ -66,29 +68,6 @@ services:
         condition: service_healthy
     networks:
       - app_network
-
-  # https://hub.docker.com/r/ngrok/ngrok
-  # Equivalent to:
-  # docker run --net=host -it -e NGROK_AUTHTOKEN=... ngrok/ngrok:latest \
-  #   http 80 --url https://untriced-hee-petrous.ngrok-free.dev
-  # Uses APP_PORT (published host port), not container-internal 80.
-  # Opt-in only: docker compose --profile ngrok up -d
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: ${NGROK_CONTAINER_NAME:-team_comp_ngrok}
-    profiles:
-      - ngrok
-    restart: unless-stopped
-    network_mode: host
-    command:
-      - "http"
-      - "${APP_PORT}"
-      - "--url"
-      - "${NGROK_URL:-https://untriced-hee-petrous.ngrok-free.dev}"
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
-    depends_on:
-      - app
 
 volumes:
   mariadb_data:

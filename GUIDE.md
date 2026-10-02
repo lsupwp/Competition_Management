@@ -103,13 +103,14 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Optional public HTTPS tunnel (Compose profile `ngrok`, `network_mode: host`):
+Optional public HTTPS tunnel (`compose.ngrok.yaml`):
 ```bash
-# Set NGROK_AUTHTOKEN (and optional NGROK_URL) in .env, then:
-docker compose --profile ngrok up -d
+# Set NGROK_AUTHTOKEN and NGROK_URL in .env, keep APP_URL as local (e.g. http://localhost:8000)
+docker compose -f compose.yaml -f compose.ngrok.yaml up -d
 ```
-Set `APP_URL` to the same HTTPS ngrok URL. Inspector: http://localhost:4040
-Plain `docker compose up -d` does not start ngrok.
+That starts ngrok and overrides app `APP_URL` to `NGROK_URL` (email links, cookies).
+Plain `docker compose up -d` uses your `.env` `APP_URL` and does not start ngrok.
+Inspector: http://localhost:4040
 
 4. Access the application
 - Web: http://localhost:8000
@@ -142,6 +143,7 @@ Default admin credentials:
 
 ```
 compose.yaml              # Docker Compose configuration
+compose.ngrok.yaml        # Optional ngrok tunnel + APP_URL override
 AGENT.md                  # Development constraints
 GUIDE.md                  # This file — project details
 checklist.md              # Course checklist
@@ -250,13 +252,13 @@ include_once __DIR__ . '/../templates/layout.php';
 |----------|-------------|---------|
 | `APP_NAME` | Application / container name | team_comp_app |
 | `APP_PORT` | Web port | 8000 |
-| `APP_URL` | Public app URL (use HTTPS ngrok URL when tunneling) | http://localhost:8000 |
+| `APP_URL` | Public app URL when not tunneling | http://localhost:8000 |
 | `APP_TIMEZONE` | App/DB timezone | Asia/Bangkok |
 | `APP_KEY` | Key for opaque IDs | (set in `.env`) |
 | `APP_DEBUG` | Show PHP errors when true | false |
 | `SESSION_TIMEOUT` | Idle session timeout (seconds) | 1800 |
 | `NGROK_AUTHTOKEN` | ngrok agent auth token | (from ngrok dashboard) |
-| `NGROK_URL` | Reserved HTTPS endpoint URL | https://untriced-hee-petrous.ngrok-free.dev |
+| `NGROK_URL` | Tunnel URL; used as `APP_URL` when `compose.ngrok.yaml` is included | https://untriced-hee-petrous.ngrok-free.dev |
 | `NGROK_CONTAINER_NAME` | ngrok container name | team_comp_ngrok |
 | `DB_HOST` | DB host (`mariadb` in Docker) | mariadb |
 | `DB_PORT` | DB port | 3306 |

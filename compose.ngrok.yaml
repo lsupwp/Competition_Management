@@ -1,0 +1,30 @@
+# Opt-in HTTPS tunnel. Does not run with plain `docker compose up -d`.
+#
+#   docker compose -f compose.yaml -f compose.ngrok.yaml up -d
+#
+# While this file is included, app APP_URL becomes NGROK_URL (from .env).
+# Without it, app uses APP_URL you set in .env (e.g. http://localhost:8000).
+
+services:
+  app:
+    environment:
+      # Overrides .env APP_URL for email links / cookies while tunneling
+      APP_URL: ${NGROK_URL}
+
+  # https://hub.docker.com/r/ngrok/ngrok
+  # docker run --net=host -e NGROK_AUTHTOKEN=... ngrok/ngrok:latest \
+  #   http $APP_PORT --url $NGROK_URL
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ${NGROK_CONTAINER_NAME:-team_comp_ngrok}
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - "http"
+      - "${APP_PORT}"
+      - "--url"
+      - "${NGROK_URL}"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      - app
