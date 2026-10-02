@@ -67,6 +67,26 @@ services:
     networks:
       - app_network
 
+  # https://hub.docker.com/r/ngrok/ngrok
+  # Equivalent to:
+  # docker run --net=host -it -e NGROK_AUTHTOKEN=... ngrok/ngrok:latest \
+  #   http 80 --url https://untriced-hee-petrous.ngrok-free.dev
+  # Uses APP_PORT (published host port), not container-internal 80.
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ${NGROK_CONTAINER_NAME:-team_comp_ngrok}
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - "http"
+      - "${APP_PORT}"
+      - "--url"
+      - "${NGROK_URL:-https://untriced-hee-petrous.ngrok-free.dev}"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      - app
+
 volumes:
   mariadb_data:
 
