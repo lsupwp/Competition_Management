@@ -103,12 +103,13 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Optional public HTTPS tunnel (ngrok service in `compose.yaml`, `network_mode: host`):
+Optional public HTTPS tunnel (Compose profile `ngrok`, `network_mode: host`):
 ```bash
 # Set NGROK_AUTHTOKEN (and optional NGROK_URL) in .env, then:
-docker compose up -d ngrok
+docker compose --profile ngrok up -d
 ```
 Set `APP_URL` to the same HTTPS ngrok URL. Inspector: http://localhost:4040
+Plain `docker compose up -d` does not start ngrok.
 
 4. Access the application
 - Web: http://localhost:8000

@@ -72,9 +72,12 @@ services:
   # docker run --net=host -it -e NGROK_AUTHTOKEN=... ngrok/ngrok:latest \
   #   http 80 --url https://untriced-hee-petrous.ngrok-free.dev
   # Uses APP_PORT (published host port), not container-internal 80.
+  # Opt-in only: docker compose --profile ngrok up -d
   ngrok:
     image: ngrok/ngrok:latest
     container_name: ${NGROK_CONTAINER_NAME:-team_comp_ngrok}
+    profiles:
+      - ngrok
     restart: unless-stopped
     network_mode: host
     command:
