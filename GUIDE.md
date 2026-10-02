@@ -106,9 +106,9 @@ docker compose up -d --build
 Optional public HTTPS tunnel (`compose.ngrok.yaml`):
 ```bash
 # Set NGROK_AUTHTOKEN and NGROK_URL in .env, keep APP_URL as local (e.g. http://localhost:8000)
-docker compose -f compose.yaml -f compose.ngrok.yaml up -d
+docker compose -f compose.ngrok.yaml up -d
 ```
-That starts ngrok and overrides app `APP_URL` to `NGROK_URL` (email links, cookies).
+That starts the full stack + ngrok and overrides app `APP_URL` to `NGROK_URL` (email links, cookies).
 Plain `docker compose up -d` uses your `.env` `APP_URL` and does not start ngrok.
 Inspector: http://localhost:4040
 

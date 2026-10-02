@@ -1,9 +1,11 @@
-# Opt-in HTTPS tunnel. Does not run with plain `docker compose up -d`.
+# Opt-in HTTPS tunnel + APP_URL=NGROK_URL.
 #
-#   docker compose -f compose.yaml -f compose.ngrok.yaml up -d
+#   docker compose -f compose.ngrok.yaml up -d
 #
-# While this file is included, app APP_URL becomes NGROK_URL (from .env).
-# Without it, app uses APP_URL you set in .env (e.g. http://localhost:8000).
+# Plain `docker compose up -d` (compose.yaml only) keeps your APP_URL and skips ngrok.
+
+include:
+  - path: compose.yaml
 
 services:
   app:
