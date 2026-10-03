@@ -8,6 +8,7 @@ use App\Services\CsrfService;
 use App\Services\ActivityLogService;
 use App\Services\PasswordPolicyService;
 use App\Services\LoginRateLimiter;
+use App\Services\AdminAccessService;
 
 class AuthController
 {
@@ -276,7 +277,7 @@ class AuthController
         return [
             'success' => true,
             'message' => 'Login successful',
-            'redirect' => '/'
+            'redirect' => AdminAccessService::loginRedirectPath($_SESSION['user'])
         ];
     }
 

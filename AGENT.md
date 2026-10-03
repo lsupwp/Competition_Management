@@ -307,6 +307,12 @@ $_SESSION['pending_email_change'] = [
     - Logout (`/auth/logout`)
   - Show Login button when user is not logged in
 
+## System admin scope
+- Role `users.role = admin` (seed via `create_admin.php`)
+- May only access `/activity` and `/auth/logout` (`AdminAccessService`, enforced in `SessionService::start()`)
+- Login redirects admins to `/activity`; other URLs redirect there
+- Regular users cannot open `/activity`
+
 ## Security
 - **Password policy:** min 8 / max 128, letter + number, common-password blocklist (`PasswordPolicyService`)
 - **CSRF Protection:** ทุก POST form ต้องมี CSRF token
