@@ -55,11 +55,13 @@ web/                      # Web application root
     -> hello.php          # Example component
   -> src/                 # PHP classes (OOP)
     -> Controllers/       # Request handlers
-      -> AuthController.php  # Register, login, verify
+      -> AuthController.php      # Register, login, verify
+      -> SettingsController.php  # Account settings actions
     -> Services/          # Business logic
-      -> Database.php     # DB connection (mysqli OOP singleton)
-      -> EmailService.php # PHPMailer wrapper
-      -> CsrfService.php  # CSRF protection (session-based)
+      -> Database.php          # DB connection (mysqli OOP singleton)
+      -> EmailService.php      # PHPMailer wrapper
+      -> CsrfService.php       # CSRF protection (session-based)
+      -> UserAccountService.php # User account DB ops (settings)
     -> Models/            # Data models (future)
   -> templates/           # Reusable templates
     -> layout.php         # Main layout (header + footer)
@@ -211,7 +213,9 @@ Team Competition Management System:
 ## Account Management System
 
 ### Settings Page (`/settings`)
-- **Route:** `web/views/settings.php`
+- **Route:** `web/views/settings.php` (UI + PRG only)
+- **Controller:** `SettingsController` — CSRF, actions, activity logs
+- **Service:** `UserAccountService` — user row reads/updates / soft-delete
 - **Auth required:** Redirects to login if not authenticated
 - **POST-Redirect-GET pattern:** All POST actions redirect to prevent form resubmission on F5
 
