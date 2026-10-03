@@ -55,11 +55,13 @@ web/                      # Web application root
     -> team-members.php
   -> src/                 # PHP classes (OOP)
     -> Controllers/       # Request handlers
-      -> AuthController.php  # Register, login, verify
+      -> AuthController.php      # Register, login, verify
+      -> SettingsController.php  # Account settings actions
     -> Services/          # Business logic
-      -> Database.php     # DB connection (mysqli OOP singleton)
-      -> EmailService.php # PHPMailer wrapper
-      -> CsrfService.php  # CSRF protection (session-based)
+      -> Database.php          # DB connection (mysqli OOP singleton)
+      -> EmailService.php      # PHPMailer wrapper
+      -> CsrfService.php       # CSRF protection (session-based)
+      -> UserAccountService.php # User account DB ops (settings)
     -> Models/            # Data models (future)
   -> templates/           # Reusable templates
     -> layout.php         # Main layout (header + footer)
@@ -194,7 +196,9 @@ Team Competition Management System:
 ## Account Management System
 
 ### Settings Page (`/settings`)
-- **Route:** `web/views/settings.php`
+- **Route:** `web/views/settings.php` (UI + PRG only)
+- **Controller:** `SettingsController` — CSRF, actions, activity logs
+- **Service:** `UserAccountService` — user row reads/updates / soft-delete
 - **Auth required:** Redirects to login if not authenticated
 - **POST-Redirect-GET pattern:** All POST actions redirect to prevent form resubmission on F5
 
@@ -231,6 +235,13 @@ Team Competition Management System:
   - Same password policy as register (min 8, letter + number, not common)
   - New password must match confirmation
   - Current password must be correct (for change)
+
+#### 4. Delete Account
+- **Action:** `delete_account` (Danger Zone on `/settings`)
+- Requires password + CSRF + confirm modal
+- Soft-deletes user (`users.deleted_at = NOW()`), clears session, redirects to login
+- Email stays reserved (`UNIQUE`) until `purge_soft_deleted_event` hard-deletes the row (every 7 days)
+- Register with that email returns the same generic success message until purge (no account created)
 
 ### Session Management Patterns
 

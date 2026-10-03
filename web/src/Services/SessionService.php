@@ -96,4 +96,25 @@ final class SessionService
 
         $_SESSION['last_activity'] = $now;
     }
+
+    /** Clear session data, expire cookie, and destroy the session. */
+    public static function destroy(): void
+    {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params['path'],
+                $params['domain'],
+                (bool)$params['secure'],
+                (bool)$params['httponly']
+            );
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_destroy();
+        }
+    }
 }

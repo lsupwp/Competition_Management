@@ -71,6 +71,8 @@ ob_start();
                             <option value="user.profile.update" <?= ($filters['action'] ?? '') === 'user.profile.update' ? 'selected' : '' ?>>Profile Updated</option>
                             <option value="user.email.change" <?= ($filters['action'] ?? '') === 'user.email.change' ? 'selected' : '' ?>>Email Changed</option>
                             <option value="user.password.add" <?= ($filters['action'] ?? '') === 'user.password.add' ? 'selected' : '' ?>>Password Added</option>
+                            <option value="user.account.delete" <?= ($filters['action'] ?? '') === 'user.account.delete' ? 'selected' : '' ?>>Account Deleted</option>
+                            <option value="user.account.delete_failed" <?= ($filters['action'] ?? '') === 'user.account.delete_failed' ? 'selected' : '' ?>>Account Delete Failed</option>
                         </optgroup>
                         <optgroup label="Team Management">
                             <option value="team.create" <?= ($filters['action'] ?? '') === 'team.create' ? 'selected' : '' ?>>Team Created</option>
