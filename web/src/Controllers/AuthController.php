@@ -56,6 +56,14 @@ class AuthController
             ];
         }
 
+        // Soft-deleted email still held until purge_soft_deleted_event (UNIQUE)
+        if (!$existingUser && $this->emailHeldBySoftDeletedUser($email)) {
+            return [
+                'success' => true,
+                'message' => $genericMessage
+            ];
+        }
+
         if ($existingUser) {
             $this->updateUnverifiedUser($existingUser['id'], $name, $password);
             $userId = $existingUser['id'];
@@ -506,6 +514,24 @@ class AuthController
         $stmt->close();
 
         return $user;
+    }
+
+    /** Email still reserved by a soft-deleted row until hard purge. */
+    private function emailHeldBySoftDeletedUser(string $email): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT id
+            FROM users
+            WHERE email = ? AND deleted_at IS NOT NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $held = $result->fetch_assoc() !== null;
+        $stmt->close();
+
+        return $held;
     }
 
     private function createUser(string $email, string $name, string $password): int

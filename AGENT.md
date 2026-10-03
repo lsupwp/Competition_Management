@@ -249,6 +249,13 @@ Team Competition Management System:
   - New password must match confirmation
   - Current password must be correct (for change)
 
+#### 4. Delete Account
+- **Action:** `delete_account` (Danger Zone on `/settings`)
+- Requires password + CSRF + confirm modal
+- Soft-deletes user (`users.deleted_at = NOW()`), clears session, redirects to login
+- Email stays reserved (`UNIQUE`) until `purge_soft_deleted_event` hard-deletes the row (every 7 days)
+- Register with that email returns the same generic success message until purge (no account created)
+
 ### Session Management Patterns
 
 #### Flash Messages (POST-Redirect-GET)

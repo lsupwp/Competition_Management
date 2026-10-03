@@ -143,7 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($newEmail) || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
             $flashData['error'] = 'Invalid email address';
         } else {
-            $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND deleted_at IS NULL");
+            // Include soft-deleted rows — email stays reserved until purge
+            $stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
             $stmt->bind_param('s', $newEmail);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -266,6 +267,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $flashData['error'] = 'Failed to update password';
             }
+            $stmt->close();
+        }
+    } elseif (isset($_POST['action']) && $_POST['action'] === 'delete_account') {
+        $password = $_POST['delete_password'] ?? '';
+
+        if (empty($userData['password_hash'])) {
+            $flashData['error'] = 'Set a password before deleting your account';
+        } elseif ($password === '' || !password_verify($password, $userData['password_hash'])) {
+            $flashData['error'] = 'Invalid password';
+            $activityLog->log(
+                'user.account.delete_failed',
+                "User '$userName' failed account deletion (bad password)",
+                $userId,
+                'user',
+                $userId,
+                ['reason' => 'bad_password']
+            );
+        } else {
+            $stmt = $db->prepare("UPDATE users SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL");
+            $stmt->bind_param('i', $userId);
+
+            if ($stmt->execute() && $stmt->affected_rows > 0) {
+                $activityLog->log(
+                    'user.account.delete',
+                    "User '$userName' deleted their account",
+                    $userId,
+                    'user',
+                    $userId
+                );
+                $stmt->close();
+
+                $_SESSION = [];
+                if (ini_get('session.use_cookies')) {
+                    $params = session_get_cookie_params();
+                    setcookie(
+                        session_name(),
+                        '',
+                        time() - 42000,
+                        $params['path'],
+                        $params['domain'],
+                        (bool)$params['secure'],
+                        (bool)$params['httponly']
+                    );
+                }
+                session_destroy();
+
+                \App\Services\SessionService::start();
+                $_SESSION['flash_success'] = 'Your account has been deleted. You can register again with this email after the retention period ends.';
+                header('Location: /auth/login');
+                exit;
+            }
+
+            $flashData['error'] = 'Failed to delete account';
             $stmt->close();
         }
     }
@@ -496,6 +550,53 @@ ob_start();
                             <button type="submit" class="btn btn-primary">Add Password</button>
                         </div>
                     </form>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="card bg-base-100 shadow-xl mt-6 border border-error">
+        <div class="card-body">
+            <h2 class="card-title text-xl mb-4 text-error">Danger Zone</h2>
+
+            <div class="flex flex-col gap-4">
+                <div>
+                    <div class="font-semibold">Delete Account</div>
+                    <div class="text-sm text-base-content/70">
+                        Soft-deletes your account. You cannot register again with the same email until the
+                        scheduled purge removes it (every 7 days).
+                    </div>
+                </div>
+
+                <?php if ($hasPassword): ?>
+                <form method="POST"
+                      class="flex flex-col gap-3 sm:flex-row sm:items-end"
+                      data-confirm="Delete your account? You will be signed out. This email stays reserved until purge."
+                      data-confirm-title="Delete Account"
+                      data-confirm-text="Delete Account"
+                      data-confirm-class="btn-error">
+                    <?php include __DIR__ . '/../templates/components/csrf.php'; ?>
+                    <input type="hidden" name="action" value="delete_account">
+                    <div class="form-control w-full sm:max-w-xs">
+                        <?php
+                        $inputName = 'delete_password';
+                        $inputLabel = 'Confirm with password';
+                        $inputType = 'password';
+                        $inputPlaceholder = '••••••••';
+                        $inputRequired = true;
+                        $inputTogglePassword = true;
+                        include __DIR__ . '/../templates/components/input.php';
+                        ?>
+                    </div>
+                    <button type="submit" class="btn btn-error btn-outline w-full sm:w-auto">
+                        Delete Account
+                    </button>
+                </form>
+                <?php else: ?>
+                <div class="text-sm text-base-content/70">
+                    Set a password before you can delete your account.
+                </div>
                 <?php endif; ?>
             </div>
         </div>
