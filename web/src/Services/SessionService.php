@@ -36,6 +36,7 @@ final class SessionService
         }
 
         self::enforceTimeout();
+        AdminAccessService::enforceScope();
     }
 
     public static function regenerate(): void
