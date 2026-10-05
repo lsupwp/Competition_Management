@@ -127,7 +127,7 @@ ob_start();
                                 <?php if (!empty($team['logo_url'])): ?>
                                     <div class="avatar">
                                         <div class="w-14 rounded-full">
-                                            <img src="<?= htmlspecialchars($team['logo_url']) ?>" alt="">
+                                            <img src="<?= safe_upload_url($team['logo_url'] ?? '') ?>" alt="">
                                         </div>
                                     </div>
                                 <?php else: ?>

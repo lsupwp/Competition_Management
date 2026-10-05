@@ -342,7 +342,7 @@ ob_start();
 <script>
 let dateIndex = <?= count($dates) ?>;
 let tagIndex = <?= count($tags) ?>;
-const lockedVisibilityIds = <?= json_encode(array_values($registeredUserIds)) ?>;
+const lockedVisibilityIds = <?= js_json(array_values($registeredUserIds)) ?>;
 
 function getSelectedVisibilityIds() {
     const container = document.getElementById('team-members-container');

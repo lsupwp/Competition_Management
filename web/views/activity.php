@@ -143,7 +143,7 @@ ob_start();
                                                 <div class="avatar">
                                                     <div class="w-8 rounded-full bg-base-300 flex items-center justify-center font-bold text-sm">
                                                         <?php if (!empty($log['user_avatar'])): ?>
-                                                            <img src="<?= htmlspecialchars($log['user_avatar']) ?>" alt="<?= htmlspecialchars($log['user_name']) ?>" />
+                                                            <img src="<?= safe_upload_url($log['user_avatar'] ?? '') ?>" alt="<?= htmlspecialchars($log['user_name']) ?>" />
                                                         <?php else: ?>
                                                             <?= h(strtoupper(substr((string)$log['user_name'], 0, 1))) ?>
                                                         <?php endif; ?>

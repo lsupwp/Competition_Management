@@ -32,6 +32,7 @@ class EmailService
     public function sendVerificationEmail(string $toEmail, string $toName, string $token): bool
     {
         try {
+            $toName = header_safe($toName);
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail, $toName);
 
@@ -88,6 +89,7 @@ class EmailService
     public function sendPasswordResetEmail(string $toEmail, string $toName, string $token): bool
     {
         try {
+            $toName = header_safe($toName);
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail, $toName);
 
@@ -144,6 +146,7 @@ class EmailService
     public function sendInvitationEmail(string $toEmail, string $teamName, string $token): bool
     {
         try {
+            $teamName = header_safe($teamName);
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail);
 

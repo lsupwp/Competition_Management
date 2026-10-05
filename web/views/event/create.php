@@ -222,7 +222,7 @@ ob_start();
                     </label>
                     <div id="team-members-container"
                          class="border border-base-300 rounded-lg p-4 max-h-64 overflow-y-auto"
-                         data-selected="<?= htmlspecialchars(json_encode($selectedVisibility), ENT_QUOTES, 'UTF-8') ?>"
+                         data-selected="<?= h(js_json($selectedVisibility)) ?>"
                          data-preloaded="<?= $preloadedMembers !== [] ? '1' : '0' ?>">
                         <?php if ($preloadedMembers !== []): ?>
                         <div class="space-y-2">

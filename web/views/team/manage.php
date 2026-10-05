@@ -230,7 +230,7 @@ ob_start();
                         <div class="avatar shrink-0">
                             <div class="w-14 sm:w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
                                 <?php if (!empty($selectedTeam['logo_url'])): ?>
-                                    <img src="<?= htmlspecialchars($selectedTeam['logo_url']) ?>" alt="<?= htmlspecialchars($selectedTeam['name']) ?>" class="w-full h-full object-cover" />
+                                    <img src="<?= safe_upload_url($selectedTeam['logo_url'] ?? '') ?>" alt="<?= htmlspecialchars($selectedTeam['name']) ?>" class="w-full h-full object-cover" />
                                 <?php else: ?>
                                     <?= h(strtoupper(substr((string)$selectedTeam['name'], 0, 1))) ?>
                                 <?php endif; ?>
@@ -307,7 +307,7 @@ ob_start();
                                             <div class="avatar">
                                                 <div class="w-10 rounded-full bg-base-300 flex items-center justify-center font-bold">
                                                     <?php if (!empty($member['avatar_url'])): ?>
-                                                        <img src="<?= htmlspecialchars($member['avatar_url']) ?>" alt="<?= htmlspecialchars($member['name']) ?>" />
+                                                        <img src="<?= safe_upload_url($member['avatar_url'] ?? '') ?>" alt="<?= htmlspecialchars($member['name']) ?>" />
                                                     <?php else: ?>
                                                         <?= h(strtoupper(substr((string)$member['name'], 0, 1))) ?>
                                                     <?php endif; ?>
@@ -473,7 +473,7 @@ ob_start();
                                                     <input type="text" value="<?= htmlspecialchars($appUrl) ?>/team/join?token=<?= htmlspecialchars($tokenData['token']) ?>" 
                                                            class="input input-bordered input-sm flex-1 min-w-0 text-xs" readonly id="token_<?= htmlspecialchars($tokenData['token']) ?>" />
                                                     <div class="flex flex-wrap gap-2 shrink-0">
-                                                    <button class="btn btn-sm btn-primary" onclick="copyToken('token_<?= htmlspecialchars($tokenData['token']) ?>')">Copy</button>
+                                                    <button type="button" class="btn btn-sm btn-primary" data-copy-target="token_<?= h($tokenData['token']) ?>">Copy</button>
                                                     <?php 
                                                     // Show revoke button if owner OR admin who created this token
                                                     $canRevoke = ($selectedTeam['user_role'] === 'owner') || 
@@ -616,7 +616,7 @@ ob_start();
                             <div class="avatar">
                                 <div class="w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
                                     <?php if (!empty($team['logo_url'])): ?>
-                                        <img src="<?= htmlspecialchars($team['logo_url']) ?>" alt="<?= htmlspecialchars($team['name']) ?>" class="w-full h-full object-cover" />
+                                        <img src="<?= safe_upload_url($team['logo_url'] ?? '') ?>" alt="<?= htmlspecialchars($team['name']) ?>" class="w-full h-full object-cover" />
                                     <?php else: ?>
                                         <?= h(strtoupper(substr((string)$team['name'], 0, 1))) ?>
                                     <?php endif; ?>
@@ -680,14 +680,13 @@ ob_start();
 </div>
 
 <script>
-function copyInviteLink() {
-    const input = document.getElementById('inviteLink');
+function copyFromInput(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
     input.select();
     input.setSelectionRange(0, 99999);
     navigator.clipboard.writeText(input.value);
-    
-    // Show feedback
-    const btn = event.target;
+
     const originalText = btn.textContent;
     btn.textContent = 'Copied!';
     setTimeout(() => {
@@ -695,19 +694,20 @@ function copyInviteLink() {
     }, 2000);
 }
 
+document.addEventListener('click', function (event) {
+    const btn = event.target.closest('[data-copy-target]');
+    if (!btn) return;
+    copyFromInput(btn.getAttribute('data-copy-target'), btn);
+});
+
+function copyInviteLink() {
+    const btn = event.target.closest('button') || event.target;
+    copyFromInput('inviteLink', btn);
+}
+
 function copyToken(inputId) {
-    const input = document.getElementById(inputId);
-    input.select();
-    input.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(input.value);
-    
-    // Show feedback
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => {
-        btn.textContent = originalText;
-    }, 2000);
+    const btn = event.target.closest('button') || event.target;
+    copyFromInput(inputId, btn);
 }
 </script>
 

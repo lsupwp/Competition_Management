@@ -129,7 +129,7 @@ ob_start();
                     <div class="avatar">
                         <div class="w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
                             <?php if (!empty($teamInfo['logo_url'])): ?>
-                                <img src="<?= htmlspecialchars($teamInfo['logo_url']) ?>" alt="<?= htmlspecialchars($teamInfo['name']) ?>" class="w-full h-full object-cover" />
+                                <img src="<?= safe_upload_url($teamInfo['logo_url'] ?? '') ?>" alt="<?= htmlspecialchars($teamInfo['name']) ?>" class="w-full h-full object-cover" />
                             <?php else: ?>
                                 <?= h(strtoupper(substr((string)$teamInfo['name'], 0, 1))) ?>
                             <?php endif; ?>

@@ -351,7 +351,7 @@ ob_start();
                             <label for="avatarInput" class="avatar cursor-pointer hover:opacity-80 transition-opacity">
                                 <div class="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
                                     <?php if (!empty($_SESSION['user']['avatar_url'])): ?>
-                                    <img src="<?= htmlspecialchars($_SESSION['user']['avatar_url']) ?>" alt="Avatar" />
+                                    <img src="<?= safe_upload_url($_SESSION['user']['avatar_url'] ?? '') ?>" alt="Avatar" />
                                     <?php else: ?>
                                     <div class="bg-primary text-primary-content flex items-center justify-center h-full w-full text-4xl font-bold">
                                         <?= h(strtoupper(substr((string)($_SESSION['user']['name'] ?? 'U'), 0, 1))) ?>
