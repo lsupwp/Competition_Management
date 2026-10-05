@@ -20,6 +20,8 @@ class AuthController
     /** Dummy hash for timing-safe failed logins when user is missing */
     private static ?string $dummyPasswordHash = null;
 
+    private const EMAIL_IN_USE_ERROR = 'This email is already in use and cannot be registered. Please try to log in.';
+
     public function __construct()
     {
         $this->db = Database::getInstance();
@@ -49,20 +51,13 @@ class AuthController
 
         $existingUser = $this->findUserByEmail($email);
 
-        // Already verified — do not reveal existence (SEC-03)
         if ($existingUser && $existingUser['email_verified_at'] !== null) {
-            return [
-                'success' => true,
-                'message' => $genericMessage
-            ];
+            return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
         }
 
         // Soft-deleted email still held until purge_soft_deleted_event (UNIQUE)
         if (!$existingUser && $this->emailHeldBySoftDeletedUser($email)) {
-            return [
-                'success' => true,
-                'message' => $genericMessage
-            ];
+            return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
         }
 
         if ($existingUser) {
@@ -70,6 +65,17 @@ class AuthController
             $userId = $existingUser['id'];
         } else {
             $userId = $this->createUser($email, $name, $password);
+            if ($userId === 0) {
+                $existingUser = $this->findUserByEmail($email);
+                if (($existingUser && $existingUser['email_verified_at'] !== null)
+                    || $this->emailHeldBySoftDeletedUser($email)) {
+                    return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
+                }
+                return [
+                    'success' => false,
+                    'error' => 'Unable to register this email. Please try again.',
+                ];
+            }
         }
 
         $token = $this->generateVerificationToken();
@@ -538,14 +544,17 @@ class AuthController
     private function createUser(string $email, string $name, string $password): int
     {
         $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-        
+
         $stmt = $this->db->prepare("
             INSERT INTO users (email, name, password_hash) 
             VALUES (?, ?, ?)
         ");
         $stmt->bind_param('sss', $email, $name, $passwordHash);
-        $stmt->execute();
-        $userId = $this->db->insert_id;
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return 0;
+        }
+        $userId = (int)$this->db->insert_id;
         $stmt->close();
 
         return $userId;
