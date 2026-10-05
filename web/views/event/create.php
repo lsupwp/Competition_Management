@@ -41,19 +41,71 @@ $normalizeDatetimeLocal = static function (?string $value): string {
     return $value;
 };
 
-$captureOldFromPost = static function () use ($normalizeDatetimeLocal): array {
+$normalizeDateRows = static function ($raw) use ($normalizeDatetimeLocal): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+    $rows = [];
+    foreach (array_values($raw) as $dateRow) {
+        if (!is_array($dateRow)) {
+            continue;
+        }
+        $rows[] = [
+            'date_type' => (string)($dateRow['date_type'] ?? 'competition'),
+            'description' => (string)($dateRow['description'] ?? ''),
+            'start_datetime' => $normalizeDatetimeLocal($dateRow['start_datetime'] ?? ''),
+            'end_datetime' => $normalizeDatetimeLocal($dateRow['end_datetime'] ?? ''),
+        ];
+    }
+    return $rows;
+};
+
+$normalizeTagRows = static function ($raw): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+    $rows = [];
+    foreach (array_values($raw) as $tagRow) {
+        if (!is_array($tagRow)) {
+            continue;
+        }
+        $rows[] = [
+            'name' => (string)($tagRow['name'] ?? ''),
+            'color' => (string)($tagRow['color'] ?? '#3b82f6'),
+        ];
+    }
+    return $rows;
+};
+
+$captureOldFromPost = static function () use ($normalizeDateRows, $normalizeTagRows): array {
     $visibility = $_POST['visibility_users'] ?? [];
     if (!is_array($visibility)) {
         $visibility = [];
     }
 
-    $dates = is_array($_POST['dates'] ?? null) ? array_values($_POST['dates']) : [];
-    foreach ($dates as $i => $dateRow) {
-        if (!is_array($dateRow)) {
-            continue;
+    // Prefer JSON snapshots from the browser — nested dates[n][...] can be truncated
+    // or dropped by clients/proxies when many fields are posted together.
+    $dates = $normalizeDateRows($_POST['dates'] ?? null);
+    $datesJson = json_decode((string)($_POST['dates_json'] ?? ''), true);
+    if (is_array($datesJson)) {
+        $fromJson = $normalizeDateRows($datesJson);
+        if (count($fromJson) >= count($dates)) {
+            $dates = $fromJson;
         }
-        $dates[$i]['start_datetime'] = $normalizeDatetimeLocal($dateRow['start_datetime'] ?? '');
-        $dates[$i]['end_datetime'] = $normalizeDatetimeLocal($dateRow['end_datetime'] ?? '');
+    }
+
+    $tags = $normalizeTagRows($_POST['tags'] ?? null);
+    $tagsJson = json_decode((string)($_POST['tags_json'] ?? ''), true);
+    if (is_array($tagsJson)) {
+        $fromJson = $normalizeTagRows($tagsJson);
+        if (count($fromJson) >= count($tags)) {
+            $tags = $fromJson;
+        }
+    }
+
+    $visibilityJson = json_decode((string)($_POST['visibility_json'] ?? ''), true);
+    if (is_array($visibilityJson) && $visibilityJson !== []) {
+        $visibility = $visibilityJson;
     }
 
     return [
@@ -63,8 +115,8 @@ $captureOldFromPost = static function () use ($normalizeDatetimeLocal): array {
         'team_id' => $_POST['team_id'] ?? '',
         'required_members' => $_POST['required_members'] ?? 3,
         'dates' => $dates,
-        'tags' => is_array($_POST['tags'] ?? null) ? array_values($_POST['tags']) : [],
-        'visibility_users' => array_values(array_map('intval', $visibility)),
+        'tags' => $tags,
+        'visibility_users' => array_values(array_unique(array_map('intval', $visibility))),
     ];
 };
 
@@ -73,34 +125,64 @@ if (empty($userTeams) && $_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $posted = $captureOldFromPost();
+
     // Validate CSRF token
     if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
         $error = 'Invalid security token. Please try again.';
-        $old = $captureOldFromPost();
+        $old = $posted;
     } elseif (empty($userTeams)) {
         $error = 'Only team owners and admins can create events.';
-        $old = $captureOldFromPost();
+        $old = $posted;
     } else {
+        // Rebuild POST dates/tags/visibility from normalized capture for the controller
+        $_POST['dates'] = $posted['dates'];
+        $_POST['tags'] = $posted['tags'];
+        $_POST['visibility_users'] = $posted['visibility_users'];
+
         $result = $eventController->createEvent($_POST, $_SESSION['user']['id']);
 
         if ($result['success']) {
+            unset($_SESSION['event_create_form']);
             $_SESSION['flash_success'] = 'Event created successfully!';
             header('Location: /event/view?id=' . \App\Services\IdEncoder::encode($result['event_id']));
             exit;
         }
 
         $error = $result['error'];
-        $old = $captureOldFromPost();
+        $old = $posted;
+        $_SESSION['event_create_form'] = ['old' => $old, 'error' => $error];
+        header('Location: /event/create');
+        exit;
+    }
+
+    // CSRF / no-team failures: PRG so refresh does not resubmit
+    $_SESSION['event_create_form'] = ['old' => $old, 'error' => $error];
+    header('Location: /event/create');
+    exit;
+}
+
+if (isset($_SESSION['event_create_form']) && is_array($_SESSION['event_create_form'])) {
+    $restored = $_SESSION['event_create_form'];
+    unset($_SESSION['event_create_form']);
+    if (isset($restored['old']) && is_array($restored['old'])) {
+        $old = array_merge($old, $restored['old']);
+        $old['dates'] = $normalizeDateRows($old['dates'] ?? []);
+        $old['tags'] = $normalizeTagRows($old['tags'] ?? []);
+        $old['visibility_users'] = array_values(array_unique(array_map('intval', $old['visibility_users'] ?? [])));
+    }
+    if (!empty($restored['error'])) {
+        $error = (string)$restored['error'];
     }
 }
 
-$oldDates = $old['dates'] !== [] ? $old['dates'] : [[
+$oldDates = $old['dates'] !== [] ? array_values($old['dates']) : [[
     'date_type' => 'competition',
     'description' => '',
     'start_datetime' => '',
     'end_datetime' => '',
 ]];
-$oldTags = $old['tags'] !== [] ? $old['tags'] : [[
+$oldTags = $old['tags'] !== [] ? array_values($old['tags']) : [[
     'name' => '',
     'color' => '#3b82f6',
 ]];
@@ -151,8 +233,11 @@ ob_start();
     <?php else: ?>
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-            <form method="POST" class="space-y-4">
+            <form method="POST" class="space-y-4" id="create-event-form">
                 <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+                <input type="hidden" name="dates_json" id="dates_json" value="">
+                <input type="hidden" name="tags_json" id="tags_json" value="">
+                <input type="hidden" name="visibility_json" id="visibility_json" value="">
 
                 <!-- Event Title -->
                 <div class="form-control">
@@ -469,6 +554,36 @@ const initialTeamId = document.getElementById('team_id').value;
 if (initialTeamId && membersContainer.dataset.preloaded !== '1') {
     loadTeamMembers(initialTeamId);
 }
+
+document.getElementById('create-event-form').addEventListener('submit', function () {
+    const dateRows = Array.from(document.querySelectorAll('#event-dates-container .event-date-item')).map((item) => {
+        const typeEl = item.querySelector('select[name*="[date_type]"]');
+        const descEl = item.querySelector('input[name*="[description]"]');
+        const startEl = item.querySelector('input[name*="[start_datetime]"]');
+        const endEl = item.querySelector('input[name*="[end_datetime]"]');
+        return {
+            date_type: typeEl ? typeEl.value : 'competition',
+            description: descEl ? descEl.value : '',
+            start_datetime: startEl ? startEl.value : '',
+            end_datetime: endEl ? endEl.value : '',
+        };
+    });
+    document.getElementById('dates_json').value = JSON.stringify(dateRows);
+
+    const tagRows = Array.from(document.querySelectorAll('#event-tags-container .event-tag-item')).map((item) => {
+        const nameEl = item.querySelector('input[name*="[name]"]');
+        const colorEl = item.querySelector('input[name*="[color]"]');
+        return {
+            name: nameEl ? nameEl.value : '',
+            color: colorEl ? colorEl.value : '#3b82f6',
+        };
+    });
+    document.getElementById('tags_json').value = JSON.stringify(tagRows);
+
+    rememberSelectedVisibility();
+    const visibility = getSelectedVisibilityIds();
+    document.getElementById('visibility_json').value = JSON.stringify(visibility);
+});
 
 function addEventDate() {
     const container = document.getElementById('event-dates-container');

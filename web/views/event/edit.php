@@ -67,45 +67,152 @@ $dateTypeOptions = [
     'other' => 'Other',
 ];
 
-$toDatetimeLocal = static function (?string $dt): string {
-    if (empty($dt)) {
+$normalizeDatetimeLocal = static function (?string $value): string {
+    $value = trim((string)$value);
+    if ($value === '') {
         return '';
     }
-    return date('Y-m-d\TH:i', strtotime($dt));
+    $value = str_replace(' ', 'T', $value);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $value) === 1) {
+        return substr($value, 0, 16);
+    }
+    $ts = strtotime($value);
+    return $ts ? date('Y-m-d\TH:i', $ts) : '';
 };
 
+$normalizeDateRows = static function ($raw) use ($normalizeDatetimeLocal): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+    $rows = [];
+    foreach (array_values($raw) as $dateRow) {
+        if (!is_array($dateRow)) {
+            continue;
+        }
+        $rows[] = [
+            'date_type' => (string)($dateRow['date_type'] ?? 'competition'),
+            'description' => (string)($dateRow['description'] ?? ''),
+            'start_datetime' => $normalizeDatetimeLocal($dateRow['start_datetime'] ?? ''),
+            'end_datetime' => $normalizeDatetimeLocal($dateRow['end_datetime'] ?? ''),
+        ];
+    }
+    return $rows;
+};
+
+$normalizeTagRows = static function ($raw): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+    $rows = [];
+    foreach (array_values($raw) as $tagRow) {
+        if (!is_array($tagRow)) {
+            continue;
+        }
+        $rows[] = [
+            'name' => (string)($tagRow['name'] ?? ''),
+            'color' => (string)($tagRow['color'] ?? '#3b82f6'),
+        ];
+    }
+    return $rows;
+};
+
+$captureOldFromPost = static function () use ($normalizeDateRows, $normalizeTagRows, $registeredUserIds): array {
+    $visibility = $_POST['visibility_users'] ?? [];
+    if (!is_array($visibility)) {
+        $visibility = [];
+    }
+    $visibilityJson = json_decode((string)($_POST['visibility_json'] ?? ''), true);
+    if (is_array($visibilityJson) && $visibilityJson !== []) {
+        $visibility = $visibilityJson;
+    }
+
+    $dates = $normalizeDateRows($_POST['dates'] ?? null);
+    $datesJson = json_decode((string)($_POST['dates_json'] ?? ''), true);
+    if (is_array($datesJson)) {
+        $fromJson = $normalizeDateRows($datesJson);
+        if (count($fromJson) >= count($dates)) {
+            $dates = $fromJson;
+        }
+    }
+
+    $tags = $normalizeTagRows($_POST['tags'] ?? null);
+    $tagsJson = json_decode((string)($_POST['tags_json'] ?? ''), true);
+    if (is_array($tagsJson)) {
+        $fromJson = $normalizeTagRows($tagsJson);
+        if (count($fromJson) >= count($tags)) {
+            $tags = $fromJson;
+        }
+    }
+
+    return [
+        'title' => $_POST['title'] ?? '',
+        'description' => $_POST['description'] ?? '',
+        'location' => $_POST['location'] ?? '',
+        'team_id' => $_POST['team_id'] ?? '',
+        'required_members' => $_POST['required_members'] ?? 3,
+        'dates' => $dates,
+        'tags' => $tags,
+        'visibility_users' => array_values(array_unique(array_merge(
+            array_map('intval', $visibility),
+            $registeredUserIds
+        ))),
+    ];
+};
+
+$formSessionKey = 'event_edit_form_' . (int)$eventId;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $posted = $captureOldFromPost();
+
     if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
         $error = 'Invalid security token. Please try again.';
-    } else {
-        $result = $eventController->updateEvent($eventId, $_POST, $userId);
-
-        if ($result['success']) {
-            $_SESSION['flash_success'] = 'Event updated successfully!';
-            header('Location: /event/view?id=' . \App\Services\IdEncoder::encode($eventId));
-            exit;
-        }
-
-        $error = $result['error'];
-        $old = [
-            'title' => $_POST['title'] ?? '',
-            'description' => $_POST['description'] ?? '',
-            'location' => $_POST['location'] ?? '',
-            'team_id' => $_POST['team_id'] ?? '',
-            'required_members' => $_POST['required_members'] ?? 3,
-            'dates' => $_POST['dates'] ?? [],
-            'tags' => $_POST['tags'] ?? [],
-            'visibility_users' => array_values(array_unique(array_merge(
-                array_map('intval', $_POST['visibility_users'] ?? []),
-                $registeredUserIds
-            ))),
-        ];
-        $teamMembers = !empty($old['team_id'])
-            ? $eventController->getTeamMembers((int)$old['team_id'])
-            : [];
-        $visibilityUserIds = $old['visibility_users'];
+        $old = $posted;
+        $_SESSION[$formSessionKey] = ['old' => $old, 'error' => $error];
+        header('Location: /event/edit?id=' . rawurlencode(\App\Services\IdEncoder::encode($eventId)));
+        exit;
     }
+
+    $_POST['dates'] = $posted['dates'];
+    $_POST['tags'] = $posted['tags'];
+    $_POST['visibility_users'] = $posted['visibility_users'];
+
+    $result = $eventController->updateEvent($eventId, $_POST, $userId);
+
+    if ($result['success']) {
+        unset($_SESSION[$formSessionKey]);
+        $_SESSION['flash_success'] = 'Event updated successfully!';
+        header('Location: /event/view?id=' . \App\Services\IdEncoder::encode($eventId));
+        exit;
+    }
+
+    $error = $result['error'];
+    $old = $posted;
+    $_SESSION[$formSessionKey] = ['old' => $old, 'error' => $error];
+    header('Location: /event/edit?id=' . rawurlencode(\App\Services\IdEncoder::encode($eventId)));
+    exit;
 }
+
+if (isset($_SESSION[$formSessionKey]) && is_array($_SESSION[$formSessionKey])) {
+    $restored = $_SESSION[$formSessionKey];
+    unset($_SESSION[$formSessionKey]);
+    if (isset($restored['old']) && is_array($restored['old'])) {
+        $old = array_merge($old, $restored['old']);
+        $old['dates'] = $normalizeDateRows($old['dates'] ?? []);
+        $old['tags'] = $normalizeTagRows($old['tags'] ?? []);
+        $old['visibility_users'] = array_values(array_unique(array_map('intval', $old['visibility_users'] ?? [])));
+    }
+    if (!empty($restored['error'])) {
+        $error = (string)$restored['error'];
+    }
+    $teamMembers = !empty($old['team_id'])
+        ? $eventController->getTeamMembers((int)$old['team_id'])
+        : [];
+    $visibilityUserIds = $old['visibility_users'];
+}
+
+// Normalize DB dates to datetime-local for first paint
+$old['dates'] = $normalizeDateRows($old['dates'] ?? []);
+$old['tags'] = $normalizeTagRows($old['tags'] ?? []);
 
 $encodedId = \App\Services\IdEncoder::encode($eventId);
 
@@ -128,8 +235,11 @@ ob_start();
 
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-            <form method="POST" class="space-y-4">
+            <form method="POST" class="space-y-4" id="edit-event-form">
                 <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+                <input type="hidden" name="dates_json" id="dates_json" value="">
+                <input type="hidden" name="tags_json" id="tags_json" value="">
+                <input type="hidden" name="visibility_json" id="visibility_json" value="">
 
                 <div class="form-control">
                     <label class="label">
@@ -275,12 +385,12 @@ ob_start();
                                 <div class="form-control">
                                     <label class="label"><span class="label-text">Start Date & Time</span></label>
                                     <input type="datetime-local" name="dates[<?= $i ?>][start_datetime]" class="input input-bordered"
-                                           value="<?= htmlspecialchars($toDatetimeLocal($date['start_datetime'] ?? '')) ?>" required>
+                                           value="<?= htmlspecialchars((string)($date['start_datetime'] ?? '')) ?>" required>
                                 </div>
                                 <div class="form-control">
                                     <label class="label"><span class="label-text">End Date & Time</span></label>
                                     <input type="datetime-local" name="dates[<?= $i ?>][end_datetime]" class="input input-bordered"
-                                           value="<?= htmlspecialchars($toDatetimeLocal($date['end_datetime'] ?? '')) ?>" required>
+                                           value="<?= htmlspecialchars((string)($date['end_datetime'] ?? '')) ?>" required>
                                 </div>
                             </div>
                         </div>
@@ -487,6 +597,35 @@ document.getElementById('team_id').addEventListener('change', function() {
             err.textContent = 'Error loading members';
             container.replaceChildren(err);
         });
+});
+
+document.getElementById('edit-event-form').addEventListener('submit', function () {
+    const dateRows = Array.from(document.querySelectorAll('#event-dates-container .event-date-item')).map((item) => {
+        const typeEl = item.querySelector('select[name*="[date_type]"]');
+        const descEl = item.querySelector('input[name*="[description]"]');
+        const startEl = item.querySelector('input[name*="[start_datetime]"]');
+        const endEl = item.querySelector('input[name*="[end_datetime]"]');
+        return {
+            date_type: typeEl ? typeEl.value : 'competition',
+            description: descEl ? descEl.value : '',
+            start_datetime: startEl ? startEl.value : '',
+            end_datetime: endEl ? endEl.value : '',
+        };
+    });
+    document.getElementById('dates_json').value = JSON.stringify(dateRows);
+
+    const tagRows = Array.from(document.querySelectorAll('#event-tags-container .event-tag-item')).map((item) => {
+        const nameEl = item.querySelector('input[name*="[name]"]');
+        const colorEl = item.querySelector('input[name*="[color]"]');
+        return {
+            name: nameEl ? nameEl.value : '',
+            color: colorEl ? colorEl.value : '#3b82f6',
+        };
+    });
+    document.getElementById('tags_json').value = JSON.stringify(tagRows);
+
+    rememberSelectedVisibility();
+    document.getElementById('visibility_json').value = JSON.stringify(getSelectedVisibilityIds());
 });
 
 function addEventDate() {
