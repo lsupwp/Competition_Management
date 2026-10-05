@@ -35,7 +35,7 @@ if (!$event) {
 
 $userId = $_SESSION['user']['id'];
 if (!$eventController->canUserSeeEvent($eventId, $userId)) {
-    $_SESSION['flash_error'] = 'You do not have permission to view this event';
+    $_SESSION['flash_error'] = 'Event not found';
     header('Location: /event');
     exit;
 }

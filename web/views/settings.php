@@ -146,8 +146,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($newEmail) || !filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
             $flashData['error'] = 'Invalid email address';
         } else {
-            $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND deleted_at IS NULL");
-            $stmt->bind_param('s', $newEmail);
+            $stmt = $db->prepare("
+                SELECT id FROM users
+                WHERE deleted_at IS NULL
+                  AND (email = ? OR pending_email = ?)
+                  AND id != ?
+                LIMIT 1
+            ");
+            $uid = (int)$_SESSION['user']['id'];
+            $stmt->bind_param('ssi', $newEmail, $newEmail, $uid);
             $stmt->execute();
             $result = $stmt->get_result();
             
@@ -160,29 +167,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (empty($userData['password_hash'])) {
                     $flashData['error'] = 'Set a password before changing email';
                 } elseif (password_verify($password, $userData['password_hash'])) {
-                    $token = bin2hex(random_bytes(32));
-                    $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
-                    
-                    $stmt = $db->prepare("UPDATE users SET email = ?, email_verified_at = NULL, verification_token = ?, verification_token_expires_at = ? WHERE id = ?");
-                    $stmt->bind_param('sssi', $newEmail, $token, $expiresAt, $_SESSION['user']['id']);
-                    $stmt->execute();
-                    $stmt->close();
-                    
-                    $emailService = new \App\Services\EmailService();
-                    $emailService->sendVerificationEmail($newEmail, $_SESSION['user']['name'], $token);
-                    
-                    $_SESSION['user']['email'] = $newEmail;
-                    $flashData['success'] = 'Email updated. Please check your inbox to verify your new email address.';
-                    
-                    // Log email change
-                    $activityLog->log(
-                        'user.email.change',
-                        "User '$userName' changed email to '$newEmail'",
-                        $userId,
-                        'user',
-                        $userId,
-                        ['new_email' => $newEmail]
-                    );
+                    if (strcasecmp($newEmail, (string)$userData['email']) === 0) {
+                        $flashData['error'] = 'That is already your current email';
+                    } else {
+                        $token = bin2hex(random_bytes(32));
+                        $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
+
+                        // Keep current email verified until the new address confirms
+                        $stmt = $db->prepare("
+                            UPDATE users
+                            SET pending_email = ?,
+                                verification_token = ?,
+                                verification_token_expires_at = ?
+                            WHERE id = ?
+                        ");
+                        $stmt->bind_param('sssi', $newEmail, $token, $expiresAt, $_SESSION['user']['id']);
+                        $stmt->execute();
+                        $stmt->close();
+
+                        $emailService = new \App\Services\EmailService();
+                        $emailService->sendVerificationEmail($newEmail, $_SESSION['user']['name'], $token);
+
+                        $flashData['success'] = 'Check your new inbox to confirm the email change. Your current email stays active until then.';
+
+                        $activityLog->log(
+                            'user.email.change_requested',
+                            "User '$userName' requested email change to '$newEmail'",
+                            $userId,
+                            'user',
+                            $userId,
+                            ['pending_email' => $newEmail]
+                        );
+                    }
                 } else {
                     $flashData['error'] = 'Invalid password';
                     $activityLog->log(
@@ -283,37 +299,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['email_changed']) && $_GET['email_changed'] === '1') {
-    $pendingData = $_SESSION['pending_email_change'] ?? null;
-    if ($pendingData) {
-        $newEmail = $pendingData['new_email'];
-        $token = bin2hex(random_bytes(32));
-        $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
-        $userId = $_SESSION['user']['id'];
-        $userName = $_SESSION['user']['name'] ?? 'Unknown';
-        
-        $stmt = $db->prepare("UPDATE users SET email = ?, email_verified_at = NULL, verification_token = ?, verification_token_expires_at = ? WHERE id = ?");
-        $stmt->bind_param('sssi', $newEmail, $token, $expiresAt, $_SESSION['user']['id']);
-        $stmt->execute();
-        $stmt->close();
-        
-        $emailService = new \App\Services\EmailService();
-        $emailService->sendVerificationEmail($newEmail, $_SESSION['user']['name'], $token);
-        
-        $_SESSION['user']['email'] = $newEmail;
-        unset($_SESSION['pending_email_change']);
-
-        $activityLog = new \App\Services\ActivityLogService();
-        $activityLog->log(
-            'user.email.change',
-            "User '$userName' changed email to '$newEmail'",
-            $userId,
-            'user',
-            $userId,
-            ['new_email' => $newEmail, 'via' => 'pending_email_change']
-        );
-        
-        $success = 'Email updated. Please check your inbox to verify your new email address.';
-    }
+    // Legacy OAuth-style callback removed: never swap email before verification.
+    unset($_SESSION['pending_email_change']);
+    $success = 'To change your email, use the form below. Confirm via the link sent to the new address.';
 }
 
 ob_start();

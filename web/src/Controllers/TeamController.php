@@ -133,39 +133,79 @@ class TeamController
             return ['success' => false, 'error' => 'You are already a member of this team'];
         }
 
-        // Check team member limit
-        $memberCount = $this->getTeamMemberCount($invitation['team_id']);
-        $maxMembers = $this->getTeamMaxMembers($invitation['team_id']);
-        
-        if ($memberCount >= $maxMembers) {
-            return ['success' => false, 'error' => 'Team has reached maximum member limit'];
-        }
-
-        // Add user to team
-        $stmt = $this->db->prepare("
-            INSERT INTO team_members (team_id, user_id, role)
-            VALUES (?, ?, ?)
-        ");
         $inviteTeamId = (int)$invitation['team_id'];
         $role = $invitation['role'];
-        $stmt->bind_param('iis', $inviteTeamId, $userId, $role);
-        
-        if (!$stmt->execute()) {
-            return ['success' => false, 'error' => 'Failed to join team'];
+        if (!in_array($role, ['admin', 'member'], true)) {
+            $role = 'member';
         }
-        $stmt->close();
 
-        // Mark email invites as used (single-use)
-        // Token invites remain reusable (no used_at set)
-        if ($isEmailInvite) {
-            $stmt = $this->db->prepare("
-                UPDATE team_invitations 
-                SET used_at = NOW() 
-                WHERE id = ?
+        $this->db->begin_transaction();
+        try {
+            $lock = $this->db->prepare("
+                SELECT id, max_members FROM teams
+                WHERE id = ? AND deleted_at IS NULL
+                FOR UPDATE
             ");
-            $stmt->bind_param('i', $invitation['id']);
-            $stmt->execute();
-            $stmt->close();
+            $lock->bind_param('i', $inviteTeamId);
+            $lock->execute();
+            $teamRow = $lock->get_result()->fetch_assoc();
+            $lock->close();
+
+            if (!$teamRow) {
+                $this->db->rollback();
+                return ['success' => false, 'error' => 'Team not found'];
+            }
+
+            $memberCount = $this->getTeamMemberCount($inviteTeamId);
+            $maxMembers = (int)$teamRow['max_members'];
+            if ($memberCount >= $maxMembers) {
+                $this->db->rollback();
+                return ['success' => false, 'error' => 'Team has reached maximum member limit'];
+            }
+
+            // Revive soft-deleted membership if present; otherwise insert
+            $revive = $this->db->prepare("
+                UPDATE team_members
+                SET deleted_at = NULL, role = ?, joined_at = NOW()
+                WHERE team_id = ? AND user_id = ? AND deleted_at IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $revive->bind_param('sii', $role, $inviteTeamId, $userId);
+            $revive->execute();
+            $revived = $revive->affected_rows > 0;
+            $revive->close();
+
+            if (!$revived) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO team_members (team_id, user_id, role)
+                    VALUES (?, ?, ?)
+                ");
+                $stmt->bind_param('iis', $inviteTeamId, $userId, $role);
+                if (!$stmt->execute()) {
+                    $stmt->close();
+                    $this->db->rollback();
+                    return ['success' => false, 'error' => 'Failed to join team'];
+                }
+                $stmt->close();
+            }
+
+            if ($isEmailInvite) {
+                $stmt = $this->db->prepare("
+                    UPDATE team_invitations
+                    SET used_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->bind_param('i', $invitation['id']);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            error_log('acceptInvitation failed: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to join team'];
         }
 
         // Get team name for logging

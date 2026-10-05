@@ -60,7 +60,22 @@ class AuthController
             ];
         }
 
+        // Someone has this address pending verification — do not hijack / race
+        if ($this->findUserIdByPendingEmail($email) !== null) {
+            return [
+                'success' => true,
+                'message' => $genericMessage
+            ];
+        }
+
         if ($existingUser) {
+            // Never overwrite an account that already owns teams/events
+            if ($this->userHasOwnedData((int)$existingUser['id'])) {
+                return [
+                    'success' => true,
+                    'message' => $genericMessage
+                ];
+            }
             $this->updateUnverifiedUser($existingUser['id'], $name, $password);
             $userId = $existingUser['id'];
         } else {
@@ -97,7 +112,7 @@ class AuthController
     public function verify(string $token): array
     {
         $stmt = $this->db->prepare("
-            SELECT id, name, email 
+            SELECT id, name, email, pending_email
             FROM users 
             WHERE verification_token = ? 
             AND verification_token_expires_at > NOW()
@@ -124,24 +139,77 @@ class AuthController
             ];
         }
 
-        $updateStmt = $this->db->prepare("
-            UPDATE users 
-            SET email_verified_at = NOW(), 
-                verification_token = NULL, 
-                verification_token_expires_at = NULL 
-            WHERE id = ?
-        ");
-        $updateStmt->bind_param('i', $user['id']);
-        $updateStmt->execute();
-        $updateStmt->close();
+        $userId = (int)$user['id'];
+        $pendingEmail = trim((string)($user['pending_email'] ?? ''));
+        $finalEmail = $user['email'];
+
+        if ($pendingEmail !== '') {
+            // Ensure the new address is still free
+            $check = $this->db->prepare("
+                SELECT id FROM users
+                WHERE email = ? AND id != ? AND deleted_at IS NULL
+                LIMIT 1
+            ");
+            $check->bind_param('si', $pendingEmail, $userId);
+            $check->execute();
+            $taken = $check->get_result()->fetch_assoc();
+            $check->close();
+
+            if ($taken) {
+                $clear = $this->db->prepare("
+                    UPDATE users
+                    SET pending_email = NULL,
+                        verification_token = NULL,
+                        verification_token_expires_at = NULL
+                    WHERE id = ?
+                ");
+                $clear->bind_param('i', $userId);
+                $clear->execute();
+                $clear->close();
+
+                return [
+                    'success' => false,
+                    'message' => 'That email address is no longer available. Please request a new email change.'
+                ];
+            }
+
+            $updateStmt = $this->db->prepare("
+                UPDATE users
+                SET email = ?,
+                    pending_email = NULL,
+                    email_verified_at = NOW(),
+                    verification_token = NULL,
+                    verification_token_expires_at = NULL
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param('si', $pendingEmail, $userId);
+            $updateStmt->execute();
+            $updateStmt->close();
+            $finalEmail = $pendingEmail;
+
+            if (isset($_SESSION['user']['id']) && (int)$_SESSION['user']['id'] === $userId) {
+                $_SESSION['user']['email'] = $pendingEmail;
+            }
+        } else {
+            $updateStmt = $this->db->prepare("
+                UPDATE users 
+                SET email_verified_at = NOW(), 
+                    verification_token = NULL, 
+                    verification_token_expires_at = NULL 
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param('i', $userId);
+            $updateStmt->execute();
+            $updateStmt->close();
+        }
 
         $this->activityLog->log(
             'auth.verify',
             "User '{$user['name']}' verified email",
-            (int)$user['id'],
+            $userId,
             'user',
-            (int)$user['id'],
-            ['email' => $user['email']]
+            $userId,
+            ['email' => $finalEmail, 'via_pending' => $pendingEmail !== '']
         );
 
         return [
@@ -512,6 +580,38 @@ class AuthController
             self::$dummyPasswordHash = password_hash('dummy-password-for-timing', PASSWORD_ARGON2ID);
         }
         return self::$dummyPasswordHash;
+    }
+
+    private function findUserIdByPendingEmail(string $email): ?int
+    {
+        $stmt = $this->db->prepare("
+            SELECT id FROM users
+            WHERE pending_email = ? AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ? (int)$row['id'] : null;
+    }
+
+    private function userHasOwnedData(int $userId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                EXISTS(SELECT 1 FROM teams WHERE owner_id = ? AND deleted_at IS NULL) AS has_team,
+                EXISTS(SELECT 1 FROM events WHERE created_by = ? AND deleted_at IS NULL) AS has_event,
+                EXISTS(
+                    SELECT 1 FROM team_members
+                    WHERE user_id = ? AND deleted_at IS NULL
+                ) AS has_membership
+        ");
+        $stmt->bind_param('iii', $userId, $userId, $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return !empty($row['has_team']) || !empty($row['has_event']) || !empty($row['has_membership']);
     }
 
     private function findUserByEmail(string $email): ?array

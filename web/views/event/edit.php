@@ -25,7 +25,7 @@ if (!$eventId) {
 }
 
 $event = $eventController->getEventById($eventId);
-if (!$event) {
+if (!$event || !$eventController->canUserSeeEvent($eventId, $userId)) {
     $_SESSION['flash_error'] = 'Event not found';
     header('Location: /event');
     exit;

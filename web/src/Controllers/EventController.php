@@ -900,15 +900,10 @@ class EventController
      */
     public function registerForEvent(int $eventId, int $userId, ?int $teamId = null): array
     {
-        // Check if event exists
+        // Check if event exists and is visible
         $event = $this->getEventById($eventId);
-        if (!$event) {
+        if (!$event || !$this->canUserSeeEvent($eventId, $userId)) {
             return ['success' => false, 'error' => 'Event not found'];
-        }
-
-        // Check if user can see this event (visibility check)
-        if (!$this->canUserSeeEvent($eventId, $userId)) {
-            return ['success' => false, 'error' => 'You do not have permission to register for this event'];
         }
 
         // Check if already registered
@@ -926,28 +921,82 @@ class EventController
             }
         }
 
-        // Insert registration (team_id may be NULL for individual registration)
-        if ($teamId === null) {
-            $stmt = $this->db->prepare("
-                INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
-                VALUES (?, ?, NULL, 'confirmed', NOW())
-            ");
-            $stmt->bind_param('ii', $eventId, $userId);
-        } else {
-            $stmt = $this->db->prepare("
-                INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
-                VALUES (?, ?, ?, 'confirmed', NOW())
-            ");
-            $stmt->bind_param('iii', $eventId, $userId, $teamId);
-        }
-        
-        if (!$stmt->execute()) {
-            $stmt->close();
+        // Insert or revive registration
+        $this->db->begin_transaction();
+        try {
+            if ($teamId === null) {
+                $revive = $this->db->prepare("
+                    UPDATE event_registrations
+                    SET deleted_at = NULL,
+                        status = 'confirmed',
+                        team_id = NULL,
+                        registered_at = NOW()
+                    WHERE event_id = ? AND user_id = ? AND deleted_at IS NOT NULL
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $revive->bind_param('ii', $eventId, $userId);
+            } else {
+                $revive = $this->db->prepare("
+                    UPDATE event_registrations
+                    SET deleted_at = NULL,
+                        status = 'confirmed',
+                        team_id = ?,
+                        registered_at = NOW()
+                    WHERE event_id = ? AND user_id = ? AND deleted_at IS NOT NULL
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $revive->bind_param('iii', $teamId, $eventId, $userId);
+            }
+            $revive->execute();
+            $revived = $revive->affected_rows > 0;
+            $revive->close();
+
+            if ($revived) {
+                $idStmt = $this->db->prepare("
+                    SELECT id FROM event_registrations
+                    WHERE event_id = ? AND user_id = ? AND deleted_at IS NULL
+                    ORDER BY id DESC LIMIT 1
+                ");
+                $idStmt->bind_param('ii', $eventId, $userId);
+                $idStmt->execute();
+                $registrationId = (int)($idStmt->get_result()->fetch_assoc()['id'] ?? 0);
+                $idStmt->close();
+            } elseif ($teamId === null) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
+                    VALUES (?, ?, NULL, 'confirmed', NOW())
+                ");
+                $stmt->bind_param('ii', $eventId, $userId);
+                if (!$stmt->execute()) {
+                    $stmt->close();
+                    $this->db->rollback();
+                    return ['success' => false, 'error' => 'Failed to register for event'];
+                }
+                $registrationId = $this->db->insert_id;
+                $stmt->close();
+            } else {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
+                    VALUES (?, ?, ?, 'confirmed', NOW())
+                ");
+                $stmt->bind_param('iii', $eventId, $userId, $teamId);
+                if (!$stmt->execute()) {
+                    $stmt->close();
+                    $this->db->rollback();
+                    return ['success' => false, 'error' => 'Failed to register for event'];
+                }
+                $registrationId = $this->db->insert_id;
+                $stmt->close();
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            error_log('registerForEvent failed: ' . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to register for event'];
         }
-        
-        $registrationId = $this->db->insert_id;
-        $stmt->close();
 
         // Log activity
         $this->activityLog->log(
@@ -972,7 +1021,7 @@ class EventController
     public function unregisterFromEvent(int $eventId, int $targetUserId, int $actorUserId): array
     {
         $event = $this->getEventById($eventId);
-        if (!$event) {
+        if (!$event || !$this->canUserSeeEvent($eventId, $actorUserId)) {
             return ['success' => false, 'error' => 'Event not found'];
         }
 
@@ -1039,7 +1088,7 @@ class EventController
     public function deleteEvent(int $eventId, int $userId): array
     {
         $event = $this->getEventById($eventId);
-        if (!$event) {
+        if (!$event || !$this->canUserSeeEvent($eventId, $userId)) {
             return ['success' => false, 'error' => 'Event not found'];
         }
 
