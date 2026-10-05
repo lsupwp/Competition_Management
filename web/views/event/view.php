@@ -278,7 +278,13 @@ ob_start();
                                                         <span class="badge badge-ghost badge-sm">You</span>
                                                     <?php endif; ?>
                                                 </div>
-                                                <div class="text-sm text-base-content/70"><?= htmlspecialchars($reg['user_email']) ?></div>
+                                                <div class="text-sm text-base-content/70">
+                                                    <?php if ($isEventOwner || $isOwnRow): ?>
+                                                        <?= htmlspecialchars($reg['user_email']) ?>
+                                                    <?php else: ?>
+                                                        ···
+                                                    <?php endif; ?>
+                                                </div>
                                             </div>
                                         </td>
                                         <td>

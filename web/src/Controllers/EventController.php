@@ -624,6 +624,7 @@ class EventController
         $stmt = $this->db->prepare("
             SELECT id FROM team_members
             WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+              AND EXISTS (SELECT 1 FROM teams t WHERE t.id = team_id AND t.deleted_at IS NULL)
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();
@@ -639,8 +640,11 @@ class EventController
     public function isUserTeamManager(int $teamId, int $userId): bool
     {
         $stmt = $this->db->prepare("
-            SELECT id FROM team_members
-            WHERE team_id = ? AND user_id = ? AND role IN ('owner', 'admin') AND deleted_at IS NULL
+            SELECT tm.id
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ? AND tm.role IN ('owner', 'admin')
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();

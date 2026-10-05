@@ -42,9 +42,13 @@ class AuthController
         }
 
         $email = trim($data['email']);
-        $name = trim($data['name']);
+        $name = sanitize_display_name($data['name'] ?? '');
         $password = $data['password'];
         $genericMessage = 'If this email can be registered, you will receive a verification link shortly.';
+
+        if ($name === '') {
+            return ['success' => false, 'error' => 'Name is required'];
+        }
 
         $existingUser = $this->findUserByEmail($email);
 
@@ -253,6 +257,7 @@ class AuthController
             'name' => $user['name'],
             'avatar_url' => $user['avatar_url'] ?? null,
             'role' => $user['role'] ?? 'user',
+            'auth_stamp' => \App\Services\SessionService::authStampFromHash($user['password_hash'] ?? null),
         ];
         $_SESSION['last_activity'] = time();
 
@@ -297,6 +302,14 @@ class AuthController
             ];
         }
 
+        $clientIp = ActivityLogService::resolveClientIp();
+        if ($this->loginRateLimiter->tooManyPasswordResetAttempts($clientIp, $email)) {
+            return [
+                'success' => false,
+                'error' => $this->loginRateLimiter->passwordResetRetryAfterMessage()
+            ];
+        }
+
         $existing = $this->findUserByEmail($email);
         $this->activityLog->log(
             'auth.password_reset_request',
@@ -309,20 +322,29 @@ class AuthController
 
         $generic = 'If your email is registered, you will receive a password reset link.';
 
-        // Only send for verified users that exist — keep response generic
+        // Only rotate token if none is still valid (avoid recovery DoS)
         if ($existing && $existing['email_verified_at'] !== null) {
-            $token = bin2hex(random_bytes(32));
-            $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
             $userId = (int)$existing['id'];
+            $token = null;
 
-            $stmt = $this->db->prepare("
-                UPDATE users
-                SET password_reset_token = ?, password_reset_token_expires_at = ?
-                WHERE id = ? AND deleted_at IS NULL
-            ");
-            $stmt->bind_param('ssi', $token, $expiresAt, $userId);
-            $stmt->execute();
-            $stmt->close();
+            if (!empty($existing['password_reset_token'])
+                && !empty($existing['password_reset_token_expires_at'])
+                && strtotime((string)$existing['password_reset_token_expires_at']) > time()
+            ) {
+                $token = $existing['password_reset_token'];
+            } else {
+                $token = bin2hex(random_bytes(32));
+                $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+                $stmt = $this->db->prepare("
+                    UPDATE users
+                    SET password_reset_token = ?, password_reset_token_expires_at = ?
+                    WHERE id = ? AND deleted_at IS NULL
+                ");
+                $stmt->bind_param('ssi', $token, $expiresAt, $userId);
+                $stmt->execute();
+                $stmt->close();
+            }
 
             $sent = $this->emailService->sendPasswordResetEmail($email, $existing['name'], $token);
             if (!$sent) {
@@ -495,7 +517,8 @@ class AuthController
     private function findUserByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT id, email, name, email_verified_at 
+            SELECT id, email, name, email_verified_at,
+                   password_reset_token, password_reset_token_expires_at
             FROM users 
             WHERE email = ? AND deleted_at IS NULL
         ");
@@ -511,7 +534,8 @@ class AuthController
     private function createUser(string $email, string $name, string $password): int
     {
         $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-        
+        $name = sanitize_display_name($name);
+
         $stmt = $this->db->prepare("
             INSERT INTO users (email, name, password_hash) 
             VALUES (?, ?, ?)
@@ -527,6 +551,7 @@ class AuthController
     private function updateUnverifiedUser(int $userId, string $name, string $password): void
     {
         $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $name = sanitize_display_name($name);
         
         $stmt = $this->db->prepare("
             UPDATE users 

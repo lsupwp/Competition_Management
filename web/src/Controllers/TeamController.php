@@ -258,8 +258,11 @@ class TeamController
     private function canInvite(int $teamId, int $userId): bool
     {
         $stmt = $this->db->prepare("
-            SELECT role FROM team_members
-            WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            SELECT tm.role
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ?
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();
@@ -276,8 +279,11 @@ class TeamController
     private function isTeamMember(int $teamId, int $userId): bool
     {
         $stmt = $this->db->prepare("
-            SELECT id FROM team_members
-            WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            SELECT tm.id
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ?
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();
@@ -375,7 +381,7 @@ class TeamController
      */
     public function createTeam(array $data, array $files, int $userId): array
     {
-        $name = trim($data['name'] ?? '');
+        $name = sanitize_display_name($data['name'] ?? '');
         $description = trim($data['description'] ?? '');
         $maxMembers = (int)($data['max_members'] ?? 10);
 
@@ -443,7 +449,10 @@ class TeamController
         
         if (!$stmt->execute()) {
             // Rollback team creation
-            $this->db->query("DELETE FROM teams WHERE id = $teamId");
+            $rollback = $this->db->prepare('DELETE FROM teams WHERE id = ?');
+            $rollback->bind_param('i', $teamId);
+            $rollback->execute();
+            $rollback->close();
             return ['success' => false, 'error' => 'Failed to add owner to team'];
         }
         $stmt->close();
@@ -579,7 +588,7 @@ class TeamController
             return ['success' => false, 'error' => 'Only team owner can update settings'];
         }
 
-        $name = trim($data['name'] ?? '');
+        $name = sanitize_display_name($data['name'] ?? '');
         $description = trim($data['description'] ?? '');
         $maxMembers = (int)($data['max_members'] ?? 10);
 
@@ -926,8 +935,11 @@ class TeamController
     private function getUserRoleInTeam(int $teamId, int $userId): ?string
     {
         $stmt = $this->db->prepare("
-            SELECT role FROM team_members
-            WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            SELECT tm.role
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ?
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();

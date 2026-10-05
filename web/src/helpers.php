@@ -11,11 +11,20 @@ function h(mixed $value): string
 }
 
 /**
- * Strip CR/LF so values cannot inject SMTP/HTTP headers.
+ * Strip CR/LF/NUL so values cannot inject SMTP/HTTP headers.
  */
 function header_safe(mixed $value): string
 {
-    return str_replace(["\r", "\n"], '', (string)$value);
+    return str_replace(["\r", "\n", "\0"], '', (string)$value);
+}
+
+/**
+ * Normalize user/team display names before persist or email.
+ */
+function sanitize_display_name(mixed $value): string
+{
+    $value = preg_replace('/[\r\n\x00]+/u', ' ', (string)$value) ?? '';
+    return trim(preg_replace('/\s+/u', ' ', $value) ?? '');
 }
 
 /**
@@ -28,6 +37,26 @@ function safe_upload_url(mixed $url): string
         return h($url);
     }
     return '';
+}
+
+/**
+ * Resolve an uploads URL to a real path under the uploads root, or null.
+ */
+function safe_upload_path(mixed $url, string $uploadsRoot): ?string
+{
+    $url = trim((string)$url);
+    if ($url === '' || !str_starts_with($url, '/uploads/') || str_contains($url, '..')) {
+        return null;
+    }
+    $root = realpath($uploadsRoot);
+    if ($root === false) {
+        return null;
+    }
+    $candidate = realpath($uploadsRoot . substr($url, strlen('/uploads')));
+    if ($candidate === false || !str_starts_with($candidate, $root . DIRECTORY_SEPARATOR)) {
+        return null;
+    }
+    return $candidate;
 }
 
 /**

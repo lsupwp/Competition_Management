@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['action']) && $_POST['action'] === 'edit_profile') {
-        $name = trim($_POST['name'] ?? '');
+        $name = sanitize_display_name($_POST['name'] ?? '');
         $errors = [];
         $successMessages = [];
         
@@ -91,8 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $avatarUrl = '/uploads/avatars/' . $stored['filename'];
 
                 if (!empty($_SESSION['user']['avatar_url'])) {
-                    $oldAvatarPath = __DIR__ . '/..' . $_SESSION['user']['avatar_url'];
-                    if (file_exists($oldAvatarPath)) {
+                    $oldAvatarPath = safe_upload_path(
+                        $_SESSION['user']['avatar_url'],
+                        __DIR__ . '/../uploads'
+                    );
+                    if ($oldAvatarPath !== null && is_file($oldAvatarPath)) {
                         unlink($oldAvatarPath);
                     }
                 }
@@ -149,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = $stmt->get_result();
             
             if ($result->num_rows > 0) {
-                $flashData['error'] = 'Email already in use';
+                $flashData['error'] = 'Unable to change email. Please try a different address.';
             } else {
                 $stmt->close();
                 
@@ -212,6 +215,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->execute()) {
                 $flashData['success'] = 'Password added successfully';
                 $hasPassword = true;
+                \App\Services\SessionService::regenerate();
+                $_SESSION['user']['auth_stamp'] = \App\Services\SessionService::authStampFromHash($passwordHash);
                 
                 // Log password addition
                 $activityLog->log(
@@ -256,6 +261,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($stmt->execute()) {
                 $flashData['success'] = 'Password updated successfully';
+                \App\Services\SessionService::regenerate();
+                $_SESSION['user']['auth_stamp'] = \App\Services\SessionService::authStampFromHash($passwordHash);
                 $activityLog->log(
                     'user.password.change',
                     "User '$userName' changed password",
