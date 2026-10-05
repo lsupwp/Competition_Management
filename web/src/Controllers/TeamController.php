@@ -390,6 +390,11 @@ class TeamController
             return ['success' => false, 'error' => 'Max members must be between 2 and 100'];
         }
 
+        // Same owner cannot own two active teams with the same name (other users may reuse the name)
+        if ($this->ownerHasActiveTeamNamed($userId, $name)) {
+            return ['success' => false, 'error' => 'You already have a team with this name'];
+        }
+
         // Handle logo upload
         $logoUrl = null;
         if (isset($files['logo']) && (int)($files['logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
@@ -603,6 +608,10 @@ class TeamController
         $currentCount = $this->getTeamMemberCount($teamId);
         if ($maxMembers < $currentCount) {
             return ['success' => false, 'error' => "Max members cannot be less than current member count ($currentCount)"];
+        }
+
+        if ($this->ownerHasActiveTeamNamed($userId, $name, $teamId)) {
+            return ['success' => false, 'error' => 'You already have a team with this name'];
         }
 
         // Handle logo upload
@@ -915,6 +924,35 @@ class TeamController
             $this->db->rollback();
             return ['success' => false, 'error' => 'Failed to transfer ownership'];
         }
+    }
+
+    /**
+     * Whether this user already owns an active team with the given name.
+     * Soft-deleted teams are ignored. Optional excludeTeamId for rename checks.
+     */
+    private function ownerHasActiveTeamNamed(int $ownerId, string $name, ?int $excludeTeamId = null): bool
+    {
+        if ($excludeTeamId === null) {
+            $stmt = $this->db->prepare("
+                SELECT id FROM teams
+                WHERE owner_id = ? AND name = ? AND deleted_at IS NULL
+                LIMIT 1
+            ");
+            $stmt->bind_param('is', $ownerId, $name);
+        } else {
+            $stmt = $this->db->prepare("
+                SELECT id FROM teams
+                WHERE owner_id = ? AND name = ? AND deleted_at IS NULL AND id != ?
+                LIMIT 1
+            ");
+            $stmt->bind_param('isi', $ownerId, $name, $excludeTeamId);
+        }
+
+        $stmt->execute();
+        $exists = $stmt->get_result()->fetch_assoc() !== null;
+        $stmt->close();
+
+        return $exists;
     }
 
     /**
