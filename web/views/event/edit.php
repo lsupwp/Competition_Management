@@ -372,33 +372,58 @@ function rememberSelectedVisibility() {
 }
 
 function renderMemberCheckbox(member, selected, locked) {
-    const isLocked = locked.includes(member.id);
-    const isChecked = isLocked || selected.includes(member.id);
-    const badge = isLocked ? '<span class="badge badge-success badge-sm">Registered</span>' : '';
-    const labelClass = isLocked ? 'flex items-center gap-3 p-2 rounded' : 'flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded';
+    const memberId = parseInt(member.id, 10);
+    const isLocked = locked.includes(memberId);
+    const isChecked = isLocked || selected.includes(memberId);
+
+    const label = document.createElement('label');
+    label.className = isLocked
+        ? 'flex items-center gap-3 p-2 rounded'
+        : 'flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded';
 
     if (isLocked) {
-        return `
-            <label class="${labelClass}">
-                <input type="hidden" name="visibility_users[]" value="${member.id}">
-                <input type="checkbox" class="checkbox checkbox-primary" checked disabled />
-                <div class="flex-1">
-                    <div class="font-semibold flex items-center gap-2">${member.name} ${badge}</div>
-                    <div class="text-sm text-base-content/70">${member.email}</div>
-                </div>
-            </label>
-        `;
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'visibility_users[]';
+        hidden.value = String(memberId);
+        label.appendChild(hidden);
     }
 
-    return `
-        <label class="${labelClass}">
-            <input type="checkbox" name="visibility_users[]" value="${member.id}" class="checkbox checkbox-primary" ${isChecked ? 'checked' : ''} />
-            <div class="flex-1">
-                <div class="font-semibold flex items-center gap-2">${member.name}</div>
-                <div class="text-sm text-base-content/70">${member.email}</div>
-            </div>
-        </label>
-    `;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'checkbox checkbox-primary';
+    checkbox.checked = isChecked;
+    if (isLocked) {
+        checkbox.disabled = true;
+    } else {
+        checkbox.name = 'visibility_users[]';
+        checkbox.value = String(memberId);
+    }
+    label.appendChild(checkbox);
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'flex-1';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'font-semibold flex items-center gap-2';
+    const nameEl = document.createElement('span');
+    nameEl.textContent = member.name ?? '';
+    nameRow.appendChild(nameEl);
+    if (isLocked) {
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-success badge-sm';
+        badge.textContent = 'Registered';
+        nameRow.appendChild(badge);
+    }
+
+    const emailEl = document.createElement('div');
+    emailEl.className = 'text-sm text-base-content/70';
+    emailEl.textContent = member.email ?? '';
+
+    textWrap.appendChild(nameRow);
+    textWrap.appendChild(emailEl);
+    label.appendChild(textWrap);
+    return label;
 }
 
 document.getElementById('team-members-container').addEventListener('change', function(e) {
@@ -418,34 +443,49 @@ document.getElementById('team_id').addEventListener('change', function() {
         return;
     }
 
-    fetch('/api/team-members?team_id=' + teamId)
+    fetch('/api/team-members?team_id=' + encodeURIComponent(teamId))
         .then(response => response.json())
         .then(data => {
+            const list = document.createElement('div');
+            list.className = 'space-y-2';
+
             if (data.success && data.members.length > 0) {
-                let html = '<div class="space-y-2">';
                 data.members.forEach(member => {
-                    html += renderMemberCheckbox(member, selected, locked);
+                    list.appendChild(renderMemberCheckbox(member, selected, locked));
                 });
                 // Keep locked registered users even if not in new team list
-                const listedIds = data.members.map(m => m.id);
+                const listedIds = data.members.map(m => parseInt(m.id, 10));
                 locked.forEach(lockedId => {
                     if (!listedIds.includes(lockedId)) {
-                        html += `<input type="hidden" name="visibility_users[]" value="${lockedId}">`;
+                        const hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = 'visibility_users[]';
+                        hidden.value = String(lockedId);
+                        list.appendChild(hidden);
                     }
                 });
-                html += '</div>';
-                container.innerHTML = html;
+                container.replaceChildren(list);
                 rememberSelectedVisibility();
             } else {
-                let html = '<p class="text-base-content/50 text-sm mb-2">No members found in this team</p>';
+                const empty = document.createElement('p');
+                empty.className = 'text-base-content/50 text-sm mb-2';
+                empty.textContent = 'No members found in this team';
+                list.appendChild(empty);
                 locked.forEach(lockedId => {
-                    html += `<input type="hidden" name="visibility_users[]" value="${lockedId}">`;
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'visibility_users[]';
+                    hidden.value = String(lockedId);
+                    list.appendChild(hidden);
                 });
-                container.innerHTML = html;
+                container.replaceChildren(list);
             }
         })
         .catch(() => {
-            container.innerHTML = '<p class="text-error text-sm">Error loading members</p>';
+            const err = document.createElement('p');
+            err.className = 'text-error text-sm';
+            err.textContent = 'Error loading members';
+            container.replaceChildren(err);
         });
 });
 
