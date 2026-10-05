@@ -458,44 +458,48 @@ class TeamController
             );
         }
 
-        // Insert team (logo_url may be NULL)
-        if ($logoUrl === null) {
+        // Insert team + owner atomically (no hard DELETE — app_user has no DELETE privilege)
+        $this->db->begin_transaction();
+        try {
+            if ($logoUrl === null) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO teams (owner_id, name, description, logo_url, max_members)
+                    VALUES (?, ?, ?, NULL, ?)
+                ");
+                $stmt->bind_param('issi', $userId, $name, $description, $maxMembers);
+            } else {
+                $stmt = $this->db->prepare("
+                    INSERT INTO teams (owner_id, name, description, logo_url, max_members)
+                    VALUES (?, ?, ?, ?, ?)
+                ");
+                $stmt->bind_param('isssi', $userId, $name, $description, $logoUrl, $maxMembers);
+            }
+
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Failed to create team');
+            }
+
+            $teamId = (int)$this->db->insert_id;
+            $stmt->close();
+
             $stmt = $this->db->prepare("
-                INSERT INTO teams (owner_id, name, description, logo_url, max_members)
-                VALUES (?, ?, ?, NULL, ?)
+                INSERT INTO team_members (team_id, user_id, role)
+                VALUES (?, ?, 'owner')
             ");
-            $stmt->bind_param('issi', $userId, $name, $description, $maxMembers);
-        } else {
-            $stmt = $this->db->prepare("
-                INSERT INTO teams (owner_id, name, description, logo_url, max_members)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-            $stmt->bind_param('isssi', $userId, $name, $description, $logoUrl, $maxMembers);
-        }
-        
-        if (!$stmt->execute()) {
+            $stmt->bind_param('ii', $teamId, $userId);
+
+            if (!$stmt->execute()) {
+                $stmt->close();
+                throw new \RuntimeException('Failed to add owner to team');
+            }
+            $stmt->close();
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            error_log('team.create failed: ' . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to create team'];
         }
-        
-        $teamId = $this->db->insert_id;
-        $stmt->close();
-
-        // Add creator as owner
-        $stmt = $this->db->prepare("
-            INSERT INTO team_members (team_id, user_id, role)
-            VALUES (?, ?, 'owner')
-        ");
-        $stmt->bind_param('ii', $teamId, $userId);
-        
-        if (!$stmt->execute()) {
-            // Rollback team creation
-            $rollback = $this->db->prepare('DELETE FROM teams WHERE id = ?');
-            $rollback->bind_param('i', $teamId);
-            $rollback->execute();
-            $rollback->close();
-            return ['success' => false, 'error' => 'Failed to add owner to team'];
-        }
-        $stmt->close();
 
         // Log activity
         $this->activityLog->log(
