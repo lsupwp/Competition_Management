@@ -4,8 +4,8 @@
 ?>
 <div class="card bg-base-100 shadow-xl">
     <div class="card-body">
-        <h2 class="card-title"><?= $cardTitle ?? 'Card Title' ?></h2>
-        <p><?= $cardBody ?? '' ?></p>
+        <h2 class="card-title"><?= h($cardTitle ?? 'Card Title') ?></h2>
+        <p><?= h($cardBody ?? '') ?></p>
         <?php if (isset($cardActions)): ?>
         <div class="card-actions justify-end">
             <?= $cardActions ?>

@@ -9,6 +9,7 @@
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
+    pending_email VARCHAR(255) NULL,
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255),
     avatar_url VARCHAR(500),
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at TIMESTAMP NULL,
     
     INDEX idx_email (email),
+    INDEX idx_pending_email (pending_email),
     INDEX idx_role (role),
     INDEX idx_verification_token (verification_token),
     INDEX idx_password_reset_token (password_reset_token),
@@ -64,7 +66,8 @@ CREATE TABLE IF NOT EXISTS team_members (
     
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_team_user (team_id, user_id, deleted_at),
+    active_slot TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) VIRTUAL,
+    UNIQUE KEY unique_active_team_user (team_id, user_id, active_slot),
     INDEX idx_team_id (team_id),
     INDEX idx_user_id (user_id),
     INDEX idx_role (role),
@@ -178,7 +181,8 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
-    UNIQUE KEY unique_event_user (event_id, user_id, deleted_at),
+    active_slot TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) VIRTUAL,
+    UNIQUE KEY unique_active_event_user (event_id, user_id, active_slot),
     INDEX idx_event_id (event_id),
     INDEX idx_user_id (user_id),
     INDEX idx_team_id (team_id),
@@ -271,7 +275,7 @@ END //
 DELIMITER ;
 
 CREATE EVENT purge_soft_deleted_event
-ON SCHEDULE EVERY 7 DAY
+ON SCHEDULE EVERY 5 MINUTE
 STARTS CURRENT_TIMESTAMP
 ON COMPLETION PRESERVE
 ENABLE

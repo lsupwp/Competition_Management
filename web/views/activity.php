@@ -71,8 +71,6 @@ ob_start();
                             <option value="user.profile.update" <?= ($filters['action'] ?? '') === 'user.profile.update' ? 'selected' : '' ?>>Profile Updated</option>
                             <option value="user.email.change" <?= ($filters['action'] ?? '') === 'user.email.change' ? 'selected' : '' ?>>Email Changed</option>
                             <option value="user.password.add" <?= ($filters['action'] ?? '') === 'user.password.add' ? 'selected' : '' ?>>Password Added</option>
-                            <option value="user.account.delete" <?= ($filters['action'] ?? '') === 'user.account.delete' ? 'selected' : '' ?>>Account Deleted</option>
-                            <option value="user.account.delete_failed" <?= ($filters['action'] ?? '') === 'user.account.delete_failed' ? 'selected' : '' ?>>Account Delete Failed</option>
                         </optgroup>
                         <optgroup label="Team Management">
                             <option value="team.create" <?= ($filters['action'] ?? '') === 'team.create' ? 'selected' : '' ?>>Team Created</option>
@@ -117,7 +115,7 @@ ob_start();
         <div class="card-body">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="card-title text-xl">Activities</h2>
-                <span class="text-sm text-base-content/70"><?= $total ?> total activities</span>
+                <span class="text-sm text-base-content/70"><?= (int)$total ?> total activities</span>
             </div>
 
             <?php if (empty($logs)): ?>
@@ -145,9 +143,9 @@ ob_start();
                                                 <div class="avatar">
                                                     <div class="w-8 rounded-full bg-base-300 flex items-center justify-center font-bold text-sm">
                                                         <?php if (!empty($log['user_avatar'])): ?>
-                                                            <img src="<?= htmlspecialchars($log['user_avatar']) ?>" alt="<?= htmlspecialchars($log['user_name']) ?>" />
+                                                            <img src="<?= safe_upload_url($log['user_avatar'] ?? '') ?>" alt="<?= htmlspecialchars($log['user_name']) ?>" />
                                                         <?php else: ?>
-                                                            <?= strtoupper(substr($log['user_name'], 0, 1)) ?>
+                                                            <?= h(strtoupper(substr((string)$log['user_name'], 0, 1))) ?>
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
@@ -196,7 +194,7 @@ ob_start();
                             ?>
                             
                             <?php if ($page > 1): ?>
-                                <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page - 1 ?>" class="join-item btn btn-sm">«</a>
+                                <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)($page - 1) ?>" class="join-item btn btn-sm">«</a>
                             <?php endif; ?>
                             
                             <?php
@@ -206,14 +204,14 @@ ob_start();
                             
                             for ($i = $startPage; $i <= $endPage; $i++):
                             ?>
-                                <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $i ?>" 
+                                <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)$i ?>" 
                                    class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
-                                    <?= $i ?>
+                                    <?= (int)$i ?>
                                 </a>
                             <?php endfor; ?>
                             
                             <?php if ($page < $totalPages): ?>
-                                <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page + 1 ?>" class="join-item btn btn-sm">»</a>
+                                <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)($page + 1) ?>" class="join-item btn btn-sm">»</a>
                             <?php endif; ?>
                         </div>
                     </div>

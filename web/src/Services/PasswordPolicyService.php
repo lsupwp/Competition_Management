@@ -4,7 +4,7 @@ namespace App\Services;
 
 class PasswordPolicyService
 {
-    public const MIN_LENGTH = 8;
+    public const MIN_LENGTH = 12;
 
     /** @var list<string> */
     private const COMMON_PASSWORDS = [

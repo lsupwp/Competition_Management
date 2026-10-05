@@ -1,11 +1,7 @@
-<?php
-$isAdminUser = isset($_SESSION['user']) && ($_SESSION['user']['role'] ?? '') === 'admin';
-$homeHref = $isAdminUser ? '/activity' : '/';
-?>
 <header class="navbar bg-base-100 shadow-lg px-2 sm:px-4">
     <div class="container mx-auto flex items-center gap-1 w-full min-w-0">
         <div class="flex-1 min-w-0">
-            <a href="<?= htmlspecialchars($homeHref) ?>" class="btn btn-ghost text-lg sm:text-xl gap-2 px-1 sm:px-2 normal-case">
+            <a href="/" class="btn btn-ghost text-lg sm:text-xl gap-2 px-1 sm:px-2 normal-case">
                 <img src="/assets/logo.png" alt="Team Comp" class="h-8 w-8 rounded-full object-cover shrink-0" />
                 <span class="truncate">Team Comp</span>
             </a>
@@ -13,13 +9,12 @@ $homeHref = $isAdminUser ? '/activity' : '/';
 
         <!-- Desktop nav -->
         <ul class="menu menu-horizontal px-1 hidden lg:flex flex-nowrap">
-            <?php if ($isAdminUser): ?>
-            <li><a href="/activity">Activity</a></li>
-            <?php else: ?>
             <li><a href="/">Home</a></li>
             <li><a href="/team/manage">Teams</a></li>
             <li><a href="/event">Events</a></li>
             <li><a href="/event/calendar">Calendar</a></li>
+            <?php if (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin'): ?>
+            <li><a href="/activity">Activity</a></li>
             <?php endif; ?>
         </ul>
 
@@ -32,13 +27,12 @@ $homeHref = $isAdminUser ? '/activity' : '/';
                     </svg>
                 </div>
                 <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[20] p-2 shadow bg-base-100 rounded-box w-52">
-                    <?php if ($isAdminUser): ?>
-                    <li><a href="/activity">Activity</a></li>
-                    <?php else: ?>
                     <li><a href="/">Home</a></li>
                     <li><a href="/team/manage">Teams</a></li>
                     <li><a href="/event">Events</a></li>
                     <li><a href="/event/calendar">Calendar</a></li>
+                    <?php if (isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin'): ?>
+                    <li><a href="/activity">Activity</a></li>
                     <?php endif; ?>
                     <?php if (!isset($_SESSION['user'])): ?>
                     <li><a href="/auth/login">Login</a></li>
@@ -58,10 +52,10 @@ $homeHref = $isAdminUser ? '/activity' : '/';
                 <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
                     <div class="w-9 sm:w-10 rounded-full">
                         <?php if (!empty($_SESSION['user']['avatar_url'])): ?>
-                        <img alt="User Avatar" src="<?= htmlspecialchars($_SESSION['user']['avatar_url']) ?>" />
+                        <img alt="User Avatar" src="<?= safe_upload_url($_SESSION['user']['avatar_url'] ?? '') ?>" />
                         <?php else: ?>
                         <div class="bg-primary text-primary-content flex items-center justify-center h-full w-full text-lg font-bold">
-                            <?= strtoupper(substr($_SESSION['user']['name'] ?? 'U', 0, 1)) ?>
+                            <?= htmlspecialchars(strtoupper(substr((string)($_SESSION['user']['name'] ?? 'U'), 0, 1)), ENT_QUOTES, 'UTF-8') ?>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -70,13 +64,9 @@ $homeHref = $isAdminUser ? '/activity' : '/';
                     <li class="menu-title px-4 py-2">
                         <span class="text-sm font-bold"><?= htmlspecialchars($_SESSION['user']['name'] ?? 'User') ?></span>
                     </li>
-                    <?php if ($isAdminUser): ?>
-                    <li><a href="/activity">Activity Log</a></li>
-                    <?php else: ?>
                     <li><a href="/settings">Settings</a></li>
                     <li><a href="/team/manage">Manage Team</a></li>
                     <li><a href="/team/join">Join Team</a></li>
-                    <?php endif; ?>
                     <li class="border-t border-base-300 mt-2 pt-2">
                         <form method="POST" action="/auth/logout" class="px-0">
                             <?php include __DIR__ . '/components/csrf.php'; ?>

@@ -192,7 +192,7 @@ ob_start();
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('event-calendar');
-    const feedUrl = <?= json_encode($feedUrl) ?>;
+    const feedUrl = <?= js_json($feedUrl) ?>;
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',

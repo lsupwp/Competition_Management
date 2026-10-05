@@ -8,7 +8,6 @@ use App\Services\CsrfService;
 use App\Services\ActivityLogService;
 use App\Services\PasswordPolicyService;
 use App\Services\LoginRateLimiter;
-use App\Services\AdminAccessService;
 
 class AuthController
 {
@@ -19,8 +18,6 @@ class AuthController
 
     /** Dummy hash for timing-safe failed logins when user is missing */
     private static ?string $dummyPasswordHash = null;
-
-    private const EMAIL_IN_USE_ERROR = 'This email is already in use and cannot be registered. Please try to log in.';
 
     public function __construct()
     {
@@ -45,37 +42,44 @@ class AuthController
         }
 
         $email = trim($data['email']);
-        $name = trim($data['name']);
+        $name = sanitize_display_name($data['name'] ?? '');
         $password = $data['password'];
         $genericMessage = 'If this email can be registered, you will receive a verification link shortly.';
 
-        $existingUser = $this->findUserByEmail($email);
-
-        if ($existingUser && $existingUser['email_verified_at'] !== null) {
-            return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
+        if ($name === '') {
+            return ['success' => false, 'error' => 'Name is required'];
         }
 
-        // Soft-deleted email still held until purge_soft_deleted_event (UNIQUE)
-        if (!$existingUser && $this->emailHeldBySoftDeletedUser($email)) {
-            return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
+        $existingUser = $this->findUserByEmail($email);
+
+        // Already verified — do not reveal existence (SEC-03)
+        if ($existingUser && $existingUser['email_verified_at'] !== null) {
+            return [
+                'success' => true,
+                'message' => $genericMessage
+            ];
+        }
+
+        // Someone has this address pending verification — do not hijack / race
+        if ($this->findUserIdByPendingEmail($email) !== null) {
+            return [
+                'success' => true,
+                'message' => $genericMessage
+            ];
         }
 
         if ($existingUser) {
+            // Never overwrite an account that already owns teams/events
+            if ($this->userHasOwnedData((int)$existingUser['id'])) {
+                return [
+                    'success' => true,
+                    'message' => $genericMessage
+                ];
+            }
             $this->updateUnverifiedUser($existingUser['id'], $name, $password);
             $userId = $existingUser['id'];
         } else {
             $userId = $this->createUser($email, $name, $password);
-            if ($userId === 0) {
-                $existingUser = $this->findUserByEmail($email);
-                if (($existingUser && $existingUser['email_verified_at'] !== null)
-                    || $this->emailHeldBySoftDeletedUser($email)) {
-                    return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
-                }
-                return [
-                    'success' => false,
-                    'error' => 'Unable to register this email. Please try again.',
-                ];
-            }
         }
 
         $token = $this->generateVerificationToken();
@@ -108,7 +112,7 @@ class AuthController
     public function verify(string $token): array
     {
         $stmt = $this->db->prepare("
-            SELECT id, name, email 
+            SELECT id, name, email, pending_email
             FROM users 
             WHERE verification_token = ? 
             AND verification_token_expires_at > NOW()
@@ -135,24 +139,77 @@ class AuthController
             ];
         }
 
-        $updateStmt = $this->db->prepare("
-            UPDATE users 
-            SET email_verified_at = NOW(), 
-                verification_token = NULL, 
-                verification_token_expires_at = NULL 
-            WHERE id = ?
-        ");
-        $updateStmt->bind_param('i', $user['id']);
-        $updateStmt->execute();
-        $updateStmt->close();
+        $userId = (int)$user['id'];
+        $pendingEmail = trim((string)($user['pending_email'] ?? ''));
+        $finalEmail = $user['email'];
+
+        if ($pendingEmail !== '') {
+            // Ensure the new address is still free
+            $check = $this->db->prepare("
+                SELECT id FROM users
+                WHERE email = ? AND id != ? AND deleted_at IS NULL
+                LIMIT 1
+            ");
+            $check->bind_param('si', $pendingEmail, $userId);
+            $check->execute();
+            $taken = $check->get_result()->fetch_assoc();
+            $check->close();
+
+            if ($taken) {
+                $clear = $this->db->prepare("
+                    UPDATE users
+                    SET pending_email = NULL,
+                        verification_token = NULL,
+                        verification_token_expires_at = NULL
+                    WHERE id = ?
+                ");
+                $clear->bind_param('i', $userId);
+                $clear->execute();
+                $clear->close();
+
+                return [
+                    'success' => false,
+                    'message' => 'That email address is no longer available. Please request a new email change.'
+                ];
+            }
+
+            $updateStmt = $this->db->prepare("
+                UPDATE users
+                SET email = ?,
+                    pending_email = NULL,
+                    email_verified_at = NOW(),
+                    verification_token = NULL,
+                    verification_token_expires_at = NULL
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param('si', $pendingEmail, $userId);
+            $updateStmt->execute();
+            $updateStmt->close();
+            $finalEmail = $pendingEmail;
+
+            if (isset($_SESSION['user']['id']) && (int)$_SESSION['user']['id'] === $userId) {
+                $_SESSION['user']['email'] = $pendingEmail;
+            }
+        } else {
+            $updateStmt = $this->db->prepare("
+                UPDATE users 
+                SET email_verified_at = NOW(), 
+                    verification_token = NULL, 
+                    verification_token_expires_at = NULL 
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param('i', $userId);
+            $updateStmt->execute();
+            $updateStmt->close();
+        }
 
         $this->activityLog->log(
             'auth.verify',
             "User '{$user['name']}' verified email",
-            (int)$user['id'],
+            $userId,
             'user',
-            (int)$user['id'],
-            ['email' => $user['email']]
+            $userId,
+            ['email' => $finalEmail, 'via_pending' => $pendingEmail !== '']
         );
 
         return [
@@ -268,6 +325,7 @@ class AuthController
             'name' => $user['name'],
             'avatar_url' => $user['avatar_url'] ?? null,
             'role' => $user['role'] ?? 'user',
+            'auth_stamp' => \App\Services\SessionService::authStampFromHash($user['password_hash'] ?? null),
         ];
         $_SESSION['last_activity'] = time();
 
@@ -283,7 +341,7 @@ class AuthController
         return [
             'success' => true,
             'message' => 'Login successful',
-            'redirect' => AdminAccessService::loginRedirectPath($_SESSION['user'])
+            'redirect' => '/'
         ];
     }
 
@@ -312,6 +370,14 @@ class AuthController
             ];
         }
 
+        $clientIp = ActivityLogService::resolveClientIp();
+        if ($this->loginRateLimiter->tooManyPasswordResetAttempts($clientIp, $email)) {
+            return [
+                'success' => false,
+                'error' => $this->loginRateLimiter->passwordResetRetryAfterMessage()
+            ];
+        }
+
         $existing = $this->findUserByEmail($email);
         $this->activityLog->log(
             'auth.password_reset_request',
@@ -324,20 +390,29 @@ class AuthController
 
         $generic = 'If your email is registered, you will receive a password reset link.';
 
-        // Only send for verified users that exist — keep response generic
+        // Only rotate token if none is still valid (avoid recovery DoS)
         if ($existing && $existing['email_verified_at'] !== null) {
-            $token = bin2hex(random_bytes(32));
-            $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
             $userId = (int)$existing['id'];
+            $token = null;
 
-            $stmt = $this->db->prepare("
-                UPDATE users
-                SET password_reset_token = ?, password_reset_token_expires_at = ?
-                WHERE id = ? AND deleted_at IS NULL
-            ");
-            $stmt->bind_param('ssi', $token, $expiresAt, $userId);
-            $stmt->execute();
-            $stmt->close();
+            if (!empty($existing['password_reset_token'])
+                && !empty($existing['password_reset_token_expires_at'])
+                && strtotime((string)$existing['password_reset_token_expires_at']) > time()
+            ) {
+                $token = $existing['password_reset_token'];
+            } else {
+                $token = bin2hex(random_bytes(32));
+                $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+                $stmt = $this->db->prepare("
+                    UPDATE users
+                    SET password_reset_token = ?, password_reset_token_expires_at = ?
+                    WHERE id = ? AND deleted_at IS NULL
+                ");
+                $stmt->bind_param('ssi', $token, $expiresAt, $userId);
+                $stmt->execute();
+                $stmt->close();
+            }
 
             $sent = $this->emailService->sendPasswordResetEmail($email, $existing['name'], $token);
             if (!$sent) {
@@ -402,7 +477,8 @@ class AuthController
             return ['success' => false, 'error' => 'Passwords do not match'];
         }
 
-        $stmt = $this->db->prepare("
+        $logUser = null;
+        $logStmt = $this->db->prepare("
             SELECT id, email, name
             FROM users
             WHERE password_reset_token = ?
@@ -410,12 +486,24 @@ class AuthController
               AND deleted_at IS NULL
             LIMIT 1
         ");
-        $stmt->bind_param('s', $token);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+        $logStmt->bind_param('s', $token);
+        $logStmt->execute();
+        $logUser = $logStmt->get_result()->fetch_assoc();
+        $logStmt->close();
 
-        if (!$user) {
+        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET password_hash = ?,
+                password_reset_token = NULL,
+                password_reset_token_expires_at = NULL
+            WHERE password_reset_token = ?
+              AND password_reset_token_expires_at > NOW()
+              AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ss', $passwordHash, $token);
+        if (!$stmt->execute() || $stmt->affected_rows !== 1) {
+            $stmt->close();
             $this->activityLog->log(
                 'auth.password_reset_failed',
                 'Password reset failed: invalid or expired token',
@@ -429,30 +517,18 @@ class AuthController
                 'error' => 'Reset link is invalid or has expired'
             ];
         }
-
-        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-        $userId = (int)$user['id'];
-        $stmt = $this->db->prepare("
-            UPDATE users
-            SET password_hash = ?,
-                password_reset_token = NULL,
-                password_reset_token_expires_at = NULL
-            WHERE id = ?
-        ");
-        $stmt->bind_param('si', $passwordHash, $userId);
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return ['success' => false, 'error' => 'Failed to update password. Please try again.'];
-        }
         $stmt->close();
 
+        $userId = $logUser ? (int)$logUser['id'] : null;
         $this->activityLog->log(
             'auth.password_reset',
-            "User '{$user['name']}' reset password",
+            $logUser
+                ? "User '{$logUser['name']}' reset password"
+                : 'User reset password via email link',
             $userId,
             'user',
             $userId,
-            ['email' => $user['email']]
+            ['email' => $logUser['email'] ?? null]
         );
 
         return [
@@ -507,10 +583,43 @@ class AuthController
         return self::$dummyPasswordHash;
     }
 
+    private function findUserIdByPendingEmail(string $email): ?int
+    {
+        $stmt = $this->db->prepare("
+            SELECT id FROM users
+            WHERE pending_email = ? AND deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ? (int)$row['id'] : null;
+    }
+
+    private function userHasOwnedData(int $userId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                EXISTS(SELECT 1 FROM teams WHERE owner_id = ? AND deleted_at IS NULL) AS has_team,
+                EXISTS(SELECT 1 FROM events WHERE created_by = ? AND deleted_at IS NULL) AS has_event,
+                EXISTS(
+                    SELECT 1 FROM team_members
+                    WHERE user_id = ? AND deleted_at IS NULL
+                ) AS has_membership
+        ");
+        $stmt->bind_param('iii', $userId, $userId, $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return !empty($row['has_team']) || !empty($row['has_event']) || !empty($row['has_membership']);
+    }
+
     private function findUserByEmail(string $email): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT id, email, name, email_verified_at 
+            SELECT id, email, name, email_verified_at,
+                   password_reset_token, password_reset_token_expires_at
             FROM users 
             WHERE email = ? AND deleted_at IS NULL
         ");
@@ -523,38 +632,18 @@ class AuthController
         return $user;
     }
 
-    /** Email still reserved by a soft-deleted row until hard purge. */
-    private function emailHeldBySoftDeletedUser(string $email): bool
-    {
-        $stmt = $this->db->prepare("
-            SELECT id
-            FROM users
-            WHERE email = ? AND deleted_at IS NOT NULL
-            LIMIT 1
-        ");
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $held = $result->fetch_assoc() !== null;
-        $stmt->close();
-
-        return $held;
-    }
-
     private function createUser(string $email, string $name, string $password): int
     {
         $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $name = sanitize_display_name($name);
 
         $stmt = $this->db->prepare("
             INSERT INTO users (email, name, password_hash) 
             VALUES (?, ?, ?)
         ");
         $stmt->bind_param('sss', $email, $name, $passwordHash);
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return 0;
-        }
-        $userId = (int)$this->db->insert_id;
+        $stmt->execute();
+        $userId = $this->db->insert_id;
         $stmt->close();
 
         return $userId;
@@ -563,6 +652,7 @@ class AuthController
     private function updateUnverifiedUser(int $userId, string $name, string $password): void
     {
         $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $name = sanitize_display_name($name);
         
         $stmt = $this->db->prepare("
             UPDATE users 

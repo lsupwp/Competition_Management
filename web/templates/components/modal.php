@@ -2,9 +2,9 @@
 // Modal component
 // Usage: include __DIR__ . '/modal.php'; with $modalId, $modalTitle, $modalContent
 ?>
-<dialog id="<?= $modalId ?? 'modal' ?>" class="modal">
+<dialog id="<?= h($modalId ?? 'modal') ?>" class="modal">
     <div class="modal-box">
-        <h3 class="font-bold text-lg"><?= $modalTitle ?? 'Modal Title' ?></h3>
+        <h3 class="font-bold text-lg"><?= h($modalTitle ?? 'Modal Title') ?></h3>
         <div class="py-4">
             <?= $modalContent ?? '' ?>
         </div>

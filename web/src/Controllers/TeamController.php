@@ -133,39 +133,79 @@ class TeamController
             return ['success' => false, 'error' => 'You are already a member of this team'];
         }
 
-        // Check team member limit
-        $memberCount = $this->getTeamMemberCount($invitation['team_id']);
-        $maxMembers = $this->getTeamMaxMembers($invitation['team_id']);
-        
-        if ($memberCount >= $maxMembers) {
-            return ['success' => false, 'error' => 'Team has reached maximum member limit'];
-        }
-
-        // Add user to team
-        $stmt = $this->db->prepare("
-            INSERT INTO team_members (team_id, user_id, role)
-            VALUES (?, ?, ?)
-        ");
         $inviteTeamId = (int)$invitation['team_id'];
         $role = $invitation['role'];
-        $stmt->bind_param('iis', $inviteTeamId, $userId, $role);
-        
-        if (!$stmt->execute()) {
-            return ['success' => false, 'error' => 'Failed to join team'];
+        if (!in_array($role, ['admin', 'member'], true)) {
+            $role = 'member';
         }
-        $stmt->close();
 
-        // Mark email invites as used (single-use)
-        // Token invites remain reusable (no used_at set)
-        if ($isEmailInvite) {
-            $stmt = $this->db->prepare("
-                UPDATE team_invitations 
-                SET used_at = NOW() 
-                WHERE id = ?
+        $this->db->begin_transaction();
+        try {
+            $lock = $this->db->prepare("
+                SELECT id, max_members FROM teams
+                WHERE id = ? AND deleted_at IS NULL
+                FOR UPDATE
             ");
-            $stmt->bind_param('i', $invitation['id']);
-            $stmt->execute();
-            $stmt->close();
+            $lock->bind_param('i', $inviteTeamId);
+            $lock->execute();
+            $teamRow = $lock->get_result()->fetch_assoc();
+            $lock->close();
+
+            if (!$teamRow) {
+                $this->db->rollback();
+                return ['success' => false, 'error' => 'Team not found'];
+            }
+
+            $memberCount = $this->getTeamMemberCount($inviteTeamId);
+            $maxMembers = (int)$teamRow['max_members'];
+            if ($memberCount >= $maxMembers) {
+                $this->db->rollback();
+                return ['success' => false, 'error' => 'Team has reached maximum member limit'];
+            }
+
+            // Revive soft-deleted membership if present; otherwise insert
+            $revive = $this->db->prepare("
+                UPDATE team_members
+                SET deleted_at = NULL, role = ?, joined_at = NOW()
+                WHERE team_id = ? AND user_id = ? AND deleted_at IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 1
+            ");
+            $revive->bind_param('sii', $role, $inviteTeamId, $userId);
+            $revive->execute();
+            $revived = $revive->affected_rows > 0;
+            $revive->close();
+
+            if (!$revived) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO team_members (team_id, user_id, role)
+                    VALUES (?, ?, ?)
+                ");
+                $stmt->bind_param('iis', $inviteTeamId, $userId, $role);
+                if (!$stmt->execute()) {
+                    $stmt->close();
+                    $this->db->rollback();
+                    return ['success' => false, 'error' => 'Failed to join team'];
+                }
+                $stmt->close();
+            }
+
+            if ($isEmailInvite) {
+                $stmt = $this->db->prepare("
+                    UPDATE team_invitations
+                    SET used_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->bind_param('i', $invitation['id']);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            error_log('acceptInvitation failed: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Failed to join team'];
         }
 
         // Get team name for logging
@@ -258,8 +298,11 @@ class TeamController
     private function canInvite(int $teamId, int $userId): bool
     {
         $stmt = $this->db->prepare("
-            SELECT role FROM team_members
-            WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            SELECT tm.role
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ?
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();
@@ -276,8 +319,11 @@ class TeamController
     private function isTeamMember(int $teamId, int $userId): bool
     {
         $stmt = $this->db->prepare("
-            SELECT id FROM team_members
-            WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            SELECT tm.id
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ?
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();
@@ -375,7 +421,7 @@ class TeamController
      */
     public function createTeam(array $data, array $files, int $userId): array
     {
-        $name = trim($data['name'] ?? '');
+        $name = sanitize_display_name($data['name'] ?? '');
         $description = trim($data['description'] ?? '');
         $maxMembers = (int)($data['max_members'] ?? 10);
 
@@ -388,11 +434,6 @@ class TeamController
         }
         if ($maxMembers < 2 || $maxMembers > 100) {
             return ['success' => false, 'error' => 'Max members must be between 2 and 100'];
-        }
-
-        // Same owner cannot own two active teams with the same name (other users may reuse the name)
-        if ($this->ownerHasActiveTeamNamed($userId, $name)) {
-            return ['success' => false, 'error' => 'You already have a team with this name'];
         }
 
         // Handle logo upload
@@ -448,7 +489,10 @@ class TeamController
         
         if (!$stmt->execute()) {
             // Rollback team creation
-            $this->db->query("DELETE FROM teams WHERE id = $teamId");
+            $rollback = $this->db->prepare('DELETE FROM teams WHERE id = ?');
+            $rollback->bind_param('i', $teamId);
+            $rollback->execute();
+            $rollback->close();
             return ['success' => false, 'error' => 'Failed to add owner to team'];
         }
         $stmt->close();
@@ -506,7 +550,6 @@ class TeamController
         $teams = [];
         
         while ($row = $result->fetch_assoc()) {
-            $row['logo_url'] = \App\Services\UploadUrl::existing($row['logo_url'] ?? null);
             $teams[] = $row;
         }
         $stmt->close();
@@ -537,10 +580,6 @@ class TeamController
         $result = $stmt->get_result();
         $team = $result->fetch_assoc();
         $stmt->close();
-
-        if ($team) {
-            $team['logo_url'] = \App\Services\UploadUrl::existing($team['logo_url'] ?? null);
-        }
         
         return $team;
     }
@@ -589,7 +628,7 @@ class TeamController
             return ['success' => false, 'error' => 'Only team owner can update settings'];
         }
 
-        $name = trim($data['name'] ?? '');
+        $name = sanitize_display_name($data['name'] ?? '');
         $description = trim($data['description'] ?? '');
         $maxMembers = (int)($data['max_members'] ?? 10);
 
@@ -608,10 +647,6 @@ class TeamController
         $currentCount = $this->getTeamMemberCount($teamId);
         if ($maxMembers < $currentCount) {
             return ['success' => false, 'error' => "Max members cannot be less than current member count ($currentCount)"];
-        }
-
-        if ($this->ownerHasActiveTeamNamed($userId, $name, $teamId)) {
-            return ['success' => false, 'error' => 'You already have a team with this name'];
         }
 
         // Handle logo upload
@@ -927,35 +962,6 @@ class TeamController
     }
 
     /**
-     * Whether this user already owns an active team with the given name.
-     * Soft-deleted teams are ignored. Optional excludeTeamId for rename checks.
-     */
-    private function ownerHasActiveTeamNamed(int $ownerId, string $name, ?int $excludeTeamId = null): bool
-    {
-        if ($excludeTeamId === null) {
-            $stmt = $this->db->prepare("
-                SELECT id FROM teams
-                WHERE owner_id = ? AND name = ? AND deleted_at IS NULL
-                LIMIT 1
-            ");
-            $stmt->bind_param('is', $ownerId, $name);
-        } else {
-            $stmt = $this->db->prepare("
-                SELECT id FROM teams
-                WHERE owner_id = ? AND name = ? AND deleted_at IS NULL AND id != ?
-                LIMIT 1
-            ");
-            $stmt->bind_param('isi', $ownerId, $name, $excludeTeamId);
-        }
-
-        $stmt->execute();
-        $exists = $stmt->get_result()->fetch_assoc() !== null;
-        $stmt->close();
-
-        return $exists;
-    }
-
-    /**
      * Check if user is team owner
      */
     private function isTeamOwner(int $teamId, int $userId): bool
@@ -969,8 +975,11 @@ class TeamController
     private function getUserRoleInTeam(int $teamId, int $userId): ?string
     {
         $stmt = $this->db->prepare("
-            SELECT role FROM team_members
-            WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+            SELECT tm.role
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ?
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();

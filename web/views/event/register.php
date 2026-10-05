@@ -8,6 +8,11 @@ if (!isset($_SESSION['user'])) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: /event');
+    exit;
+}
+
 if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
     $_SESSION['flash_error'] = 'Invalid security token';
     header('Location: /event');

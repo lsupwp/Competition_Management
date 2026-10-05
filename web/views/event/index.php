@@ -127,7 +127,7 @@ ob_start();
                                 <?php if (!empty($team['logo_url'])): ?>
                                     <div class="avatar">
                                         <div class="w-14 rounded-full">
-                                            <img src="<?= htmlspecialchars($team['logo_url']) ?>" alt="">
+                                            <img src="<?= safe_upload_url($team['logo_url'] ?? '') ?>" alt="">
                                         </div>
                                     </div>
                                 <?php else: ?>
@@ -216,7 +216,7 @@ ob_start();
             </div>
         <?php else: ?>
         <div class="mb-4 text-sm text-base-content/70">
-            Showing <?= count($events) ?> of <?= $total ?> events
+            Showing <?= count($events) ?> of <?= (int)$total ?> events
         </div>
         
         <div class="grid gap-6">
@@ -226,7 +226,7 @@ ob_start();
                         <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                             <div class="flex-1">
                                 <h2 class="card-title text-2xl mb-2">
-                                    <a href="/event/view?id=<?= \App\Services\IdEncoder::encode($event['id']) ?>" class="link link-hover">
+                                    <a href="/event/view?id=<?= h(\App\Services\IdEncoder::encode($event['id'])) ?>" class="link link-hover">
                                         <?= htmlspecialchars($event['title']) ?>
                                     </a>
                                 </h2>
@@ -262,7 +262,8 @@ ob_start();
                                 <?php if (!empty($event['tags'])): ?>
                                     <div class="flex flex-wrap gap-2 mb-3">
                                         <?php foreach ($event['tags'] as $tag): ?>
-                                            <div class="badge" style="background-color: <?= htmlspecialchars($tag['color']) ?>20; color: <?= htmlspecialchars($tag['color']) ?>; border-color: <?= htmlspecialchars($tag['color']) ?>">
+                                            <?php $tagColor = css_hex_color($tag['color'] ?? null); ?>
+                                            <div class="badge" style="background-color: <?= h($tagColor) ?>20; color: <?= h($tagColor) ?>; border-color: <?= h($tagColor) ?>">
                                                 <?= htmlspecialchars($tag['name']) ?>
                                             </div>
                                         <?php endforeach; ?>
@@ -280,7 +281,7 @@ ob_start();
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                         </svg>
-                                        <span><?= $event['registration_count'] ?> registered</span>
+                                        <span><?= (int)$event['registration_count'] ?> registered</span>
                                     </div>
                                     <div class="flex items-center gap-1">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -291,7 +292,7 @@ ob_start();
                                 </div>
                             </div>
                             
-                            <a href="/event/view?id=<?= \App\Services\IdEncoder::encode($event['id']) ?>" class="btn btn-ghost btn-circle">
+                            <a href="/event/view?id=<?= h(\App\Services\IdEncoder::encode($event['id'])) ?>" class="btn btn-ghost btn-circle">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                                 </svg>
@@ -306,7 +307,7 @@ ob_start();
             <div class="flex justify-center mt-8">
                 <div class="join">
                     <?php if ($page > 1): ?>
-                        <a href="<?= $queryBase ?>page=<?= $page - 1 ?>" class="join-item btn btn-sm">«</a>
+                        <a href="<?= h($queryBase) ?>page=<?= (int)($page - 1) ?>" class="join-item btn btn-sm">«</a>
                     <?php endif; ?>
                     
                     <?php
@@ -314,13 +315,13 @@ ob_start();
                     $endPage = min($totalPages, $page + 2);
                     for ($i = $startPage; $i <= $endPage; $i++):
                     ?>
-                        <a href="<?= $queryBase ?>page=<?= $i ?>" class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
-                            <?= $i ?>
+                        <a href="<?= h($queryBase) ?>page=<?= (int)$i ?>" class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
+                            <?= (int)$i ?>
                         </a>
                     <?php endfor; ?>
                     
                     <?php if ($page < $totalPages): ?>
-                        <a href="<?= $queryBase ?>page=<?= $page + 1 ?>" class="join-item btn btn-sm">»</a>
+                        <a href="<?= h($queryBase) ?>page=<?= (int)($page + 1) ?>" class="join-item btn btn-sm">»</a>
                     <?php endif; ?>
                 </div>
             </div>

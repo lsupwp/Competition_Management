@@ -58,7 +58,7 @@ if ($token) {
         } else {
             $teamInfo = [
                 'name' => $invitation['team_name'],
-                'logo_url' => \App\Services\UploadUrl::existing($invitation['logo_url'] ?? null),
+                'logo_url' => $invitation['logo_url'],
                 'role' => $invitation['role']
             ];
         }
@@ -129,15 +129,15 @@ ob_start();
                     <div class="avatar">
                         <div class="w-16 rounded-full bg-primary text-primary-content flex items-center justify-center text-2xl font-bold">
                             <?php if (!empty($teamInfo['logo_url'])): ?>
-                                <img src="<?= htmlspecialchars($teamInfo['logo_url']) ?>" alt="<?= htmlspecialchars($teamInfo['name']) ?>" class="w-full h-full object-cover" />
+                                <img src="<?= safe_upload_url($teamInfo['logo_url'] ?? '') ?>" alt="<?= htmlspecialchars($teamInfo['name']) ?>" class="w-full h-full object-cover" />
                             <?php else: ?>
-                                <?= strtoupper(substr($teamInfo['name'], 0, 1)) ?>
+                                <?= h(strtoupper(substr((string)$teamInfo['name'], 0, 1))) ?>
                             <?php endif; ?>
                         </div>
                     </div>
                     <div>
                         <h3 class="text-xl font-bold"><?= htmlspecialchars($teamInfo['name']) ?></h3>
-                        <p class="text-sm text-base-content/70">Role: <span class="badge badge-primary"><?= ucfirst($teamInfo['role']) ?></span></p>
+                        <p class="text-sm text-base-content/70">Role: <span class="badge badge-primary"><?= h(ucfirst((string)$teamInfo['role'])) ?></span></p>
                     </div>
                 </div>
 

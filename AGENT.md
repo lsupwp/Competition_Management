@@ -50,18 +50,15 @@ web/                      # Web application root
       -> forgot-password.php  # /auth/forgot-password
       -> verify.php       # /auth/verify
       -> logout.php       # /auth/logout
-  -> api/                 # JSON / AJAX endpoints
-    -> events-calendar.php
-    -> team-members.php
+  -> api/                 # Reusable PHP components (include in views)
+    -> hello.php          # Example component
   -> src/                 # PHP classes (OOP)
     -> Controllers/       # Request handlers
-      -> AuthController.php      # Register, login, verify
-      -> SettingsController.php  # Account settings actions
+      -> AuthController.php  # Register, login, verify
     -> Services/          # Business logic
-      -> Database.php          # DB connection (mysqli OOP singleton)
-      -> EmailService.php      # PHPMailer wrapper
-      -> CsrfService.php       # CSRF protection (session-based)
-      -> UserAccountService.php # User account DB ops (settings)
+      -> Database.php     # DB connection (mysqli OOP singleton)
+      -> EmailService.php # PHPMailer wrapper
+      -> CsrfService.php  # CSRF protection (session-based)
     -> Models/            # Data models (future)
   -> templates/           # Reusable templates
     -> layout.php         # Main layout (header + footer)
@@ -105,7 +102,7 @@ $stmt->execute();
 $stmt->close();
 ```
 
-### View pattern
+### View with include component
 ```php
 <?php
 // web/views/index.php
@@ -159,13 +156,8 @@ Team Competition Management System:
 - **sessions** - Session management
 
 ## Authentication System
-- **Password policy** (`web/src/Services/PasswordPolicyService.php`):
-  - Min 8 characters, max 128
-  - At least one letter and one number
-  - Rejects a blocklist of common passwords
-  - Used by register, reset-password, and settings change/add password
 - **Register flow:**
-  1. User fills form → validate data (including password policy)
+  1. User fills form → validate data
   2. Check if email exists:
      - If email exists and verified → deny registration
      - If email exists but not verified → overwrite (update) user data
@@ -196,9 +188,7 @@ Team Competition Management System:
 ## Account Management System
 
 ### Settings Page (`/settings`)
-- **Route:** `web/views/settings.php` (UI + PRG only)
-- **Controller:** `SettingsController` — CSRF, actions, activity logs
-- **Service:** `UserAccountService` — user row reads/updates / soft-delete
+- **Route:** `web/views/settings.php`
 - **Auth required:** Redirects to login if not authenticated
 - **POST-Redirect-GET pattern:** All POST actions redirect to prevent form resubmission on F5
 
@@ -232,16 +222,9 @@ Team Competition Management System:
   - **Has password** → Show "Change Password" form (current + new + confirm)
   - **No password** → Show "Add Password" form (new + confirm only)
 - **Validation:**
-  - Same password policy as register (min 8, letter + number, not common)
+  - Password min 8 characters
   - New password must match confirmation
   - Current password must be correct (for change)
-
-#### 4. Delete Account
-- **Action:** `delete_account` (Danger Zone on `/settings`)
-- Requires password + CSRF + confirm modal
-- Soft-deletes user (`users.deleted_at = NOW()`), clears session, redirects to login
-- Email stays reserved (`UNIQUE`) until `purge_soft_deleted_event` hard-deletes the row (every 7 days)
-- Register with that email returns the same generic success message until purge (no account created)
 
 ### Session Management Patterns
 
@@ -290,14 +273,7 @@ $_SESSION['pending_email_change'] = [
     - Logout (`/auth/logout`)
   - Show Login button when user is not logged in
 
-## System admin scope
-- Role `users.role = admin` (seed via `create_admin.php`)
-- May only access `/activity` and `/auth/logout` (`AdminAccessService`, enforced in `SessionService::start()`)
-- Login redirects admins to `/activity`; other URLs redirect there
-- Regular users cannot open `/activity`
-
 ## Security
-- **Password policy:** min 8 / max 128, letter + number, common-password blocklist (`PasswordPolicyService`)
 - **CSRF Protection:** ทุก POST form ต้องมี CSRF token
   - ใช้ PHP session เก็บ token (หมดอายุ 2 ชั่วโมง)
   - `CsrfService::generateToken()` สร้าง token

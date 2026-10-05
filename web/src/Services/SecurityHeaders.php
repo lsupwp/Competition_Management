@@ -10,7 +10,10 @@ final class SecurityHeaders
             return;
         }
 
-        // Apache already sets nosniff / frame / referrer / permissions (avoid duplicates)
+        header('X-Content-Type-Options: nosniff');
+        header('X-Frame-Options: SAMEORIGIN');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
         header_remove('X-Powered-By');
 
         // Allow current CDN usage while blocking framing/object sinks
