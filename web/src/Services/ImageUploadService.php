@@ -11,8 +11,20 @@ class ImageUploadService
         'image/webp' => 'webp',
     ];
 
+    /** Client filename extension must be one of these (lowercase, no dot). */
+    private const ALLOWED_EXTENSIONS = [
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+    ];
+
     /**
      * Validate and store an uploaded image.
+     *
+     * Checks: upload error, size, client extension allow-list, detected MIME,
+     * getimagesize content, and extension↔content match. Stores under a new name.
      *
      * @return array{success:bool, path?:string, mime?:string, size?:int, filename?:string, error?:string}
      */
@@ -45,10 +57,21 @@ class ImageUploadService
             return ['success' => false, 'error' => 'File is too large. Maximum size is 2MB.'];
         }
 
+        $originalName = (string)($file['name'] ?? '');
+        $clientExt = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if ($clientExt === '' || !isset(self::ALLOWED_EXTENSIONS[$clientExt])) {
+            return ['success' => false, 'error' => 'Invalid file extension. Only JPG, PNG, GIF, and WebP are allowed.'];
+        }
+
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $detectedMime = $finfo->file($tmpPath) ?: '';
         if (!isset(self::ALLOWED_MIMES[$detectedMime])) {
             return ['success' => false, 'error' => 'Invalid file type. Only JPG, PNG, GIF, and WebP images are allowed.'];
+        }
+
+        // Extension must match real file content (blocks PNG renamed to .txt, etc.)
+        if (self::ALLOWED_EXTENSIONS[$clientExt] !== $detectedMime) {
+            return ['success' => false, 'error' => 'File extension does not match the image content.'];
         }
 
         $imageInfo = @getimagesize($tmpPath);
