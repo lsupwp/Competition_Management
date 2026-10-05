@@ -374,20 +374,16 @@ class EventController
             $eventId = $this->db->insert_id;
             $stmt->close();
 
-            // Insert event visibility (only selected users can see)
-            if (!empty($visibilityUserIds) && is_array($visibilityUserIds)) {
-                foreach ($visibilityUserIds as $visibilityUserId) {
-                    $visibilityUserId = (int)$visibilityUserId;
-                    if ($visibilityUserId > 0) {
-                        $stmt = $this->db->prepare("
-                            INSERT INTO event_visibility (event_id, user_id, granted_by)
-                            VALUES (?, ?, ?)
-                        ");
-                        $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
-                }
+            // Insert event visibility (team members only)
+            $visibilityUserIds = $this->filterVisibilityUserIds($teamId, $visibilityUserIds);
+            foreach ($visibilityUserIds as $visibilityUserId) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_visibility (event_id, user_id, granted_by)
+                    VALUES (?, ?, ?)
+                ");
+                $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
+                $stmt->execute();
+                $stmt->close();
             }
 
             // Insert event dates
@@ -423,7 +419,7 @@ class EventController
                         VALUES (?, ?, ?)
                     ");
                     $tagName = $tag['name'];
-                    $color = $tag['color'] ?? '#3b82f6';
+                    $color = $this->sanitizeTagColor($tag['color'] ?? null);
                     $stmt->bind_param('iss', $eventId, $tagName, $color);
                     $stmt->execute();
                     $stmt->close();
@@ -532,19 +528,15 @@ class EventController
                 $stmt->close();
             }
 
-            if (!empty($visibilityUserIds) && is_array($visibilityUserIds)) {
-                foreach ($visibilityUserIds as $visibilityUserId) {
-                    $visibilityUserId = (int)$visibilityUserId;
-                    if ($visibilityUserId > 0) {
-                        $stmt = $this->db->prepare("
-                            INSERT INTO event_visibility (event_id, user_id, granted_by)
-                            VALUES (?, ?, ?)
-                        ");
-                        $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
-                }
+            $visibilityUserIds = $this->filterVisibilityUserIds($teamId, $visibilityUserIds, $registeredUserIds);
+            foreach ($visibilityUserIds as $visibilityUserId) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_visibility (event_id, user_id, granted_by)
+                    VALUES (?, ?, ?)
+                ");
+                $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
+                $stmt->execute();
+                $stmt->close();
             }
 
             if (isset($data['dates']) && is_array($data['dates'])) {
@@ -576,7 +568,7 @@ class EventController
                         VALUES (?, ?, ?)
                     ");
                     $tagName = $tag['name'];
-                    $color = $tag['color'] ?? '#3b82f6';
+                    $color = $this->sanitizeTagColor($tag['color'] ?? null);
                     $stmt->bind_param('iss', $eventId, $tagName, $color);
                     $stmt->execute();
                     $stmt->close();
@@ -1214,6 +1206,51 @@ class EventController
         $isRegistered = $result->num_rows > 0;
         $stmt->close();
         return $isRegistered;
+    }
+
+    /**
+     * Keep only active team members (plus optional locked IDs such as registrants).
+     *
+     * @param list<int|string>|mixed $visibilityUserIds
+     * @param list<int> $extraAllowedIds
+     * @return list<int>
+     */
+    private function filterVisibilityUserIds(int $teamId, $visibilityUserIds, array $extraAllowedIds = []): array
+    {
+        if (!is_array($visibilityUserIds)) {
+            $visibilityUserIds = [];
+        }
+
+        $memberIds = [];
+        foreach ($this->getTeamMembers($teamId) as $member) {
+            $memberIds[(int)$member['id']] = true;
+        }
+        foreach ($extraAllowedIds as $extraId) {
+            $extraId = (int)$extraId;
+            if ($extraId > 0) {
+                $memberIds[$extraId] = true;
+            }
+        }
+
+        $allowed = [];
+        foreach ($visibilityUserIds as $visibilityUserId) {
+            $visibilityUserId = (int)$visibilityUserId;
+            if ($visibilityUserId > 0 && isset($memberIds[$visibilityUserId])) {
+                $allowed[$visibilityUserId] = $visibilityUserId;
+            }
+        }
+
+        return array_values($allowed);
+    }
+
+    /** Allow only #RGB or #RRGGBB hex colors. */
+    private function sanitizeTagColor(?string $color): string
+    {
+        $color = trim((string)$color);
+        if (preg_match('/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/', $color) === 1) {
+            return strtolower($color);
+        }
+        return '#3b82f6';
     }
 
     /**
