@@ -28,10 +28,32 @@ $old = [
     'visibility_users' => [],
 ];
 
-$captureOldFromPost = static function (): array {
+$normalizeDatetimeLocal = static function (?string $value): string {
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+    // datetime-local needs YYYY-MM-DDTHH:mm (strip seconds / normalize space)
+    $value = str_replace(' ', 'T', $value);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $value) === 1) {
+        return substr($value, 0, 16);
+    }
+    return $value;
+};
+
+$captureOldFromPost = static function () use ($normalizeDatetimeLocal): array {
     $visibility = $_POST['visibility_users'] ?? [];
     if (!is_array($visibility)) {
         $visibility = [];
+    }
+
+    $dates = is_array($_POST['dates'] ?? null) ? array_values($_POST['dates']) : [];
+    foreach ($dates as $i => $dateRow) {
+        if (!is_array($dateRow)) {
+            continue;
+        }
+        $dates[$i]['start_datetime'] = $normalizeDatetimeLocal($dateRow['start_datetime'] ?? '');
+        $dates[$i]['end_datetime'] = $normalizeDatetimeLocal($dateRow['end_datetime'] ?? '');
     }
 
     return [
@@ -40,7 +62,7 @@ $captureOldFromPost = static function (): array {
         'location' => $_POST['location'] ?? '',
         'team_id' => $_POST['team_id'] ?? '',
         'required_members' => $_POST['required_members'] ?? 3,
-        'dates' => is_array($_POST['dates'] ?? null) ? array_values($_POST['dates']) : [],
+        'dates' => $dates,
         'tags' => is_array($_POST['tags'] ?? null) ? array_values($_POST['tags']) : [],
         'visibility_users' => array_values(array_map('intval', $visibility)),
     ];
@@ -89,6 +111,18 @@ $dateTypes = [
     'other' => 'Other',
 ];
 $selectedVisibility = array_values(array_unique(array_map('intval', $old['visibility_users'])));
+
+// Server-side member list after validation error (do not rely on JS alone)
+$preloadedMembers = [];
+$selectedTeamId = (int)($old['team_id'] ?: 0);
+if ($selectedTeamId > 0) {
+    foreach ($userTeams as $team) {
+        if ((int)$team['id'] === $selectedTeamId) {
+            $preloadedMembers = $eventController->getTeamMembers($selectedTeamId);
+            break;
+        }
+    }
+}
 
 ob_start();
 ?>
@@ -188,8 +222,27 @@ ob_start();
                     </label>
                     <div id="team-members-container"
                          class="border border-base-300 rounded-lg p-4 max-h-64 overflow-y-auto"
-                         data-selected="<?= htmlspecialchars(json_encode($selectedVisibility), ENT_QUOTES, 'UTF-8') ?>">
+                         data-selected="<?= htmlspecialchars(json_encode($selectedVisibility), ENT_QUOTES, 'UTF-8') ?>"
+                         data-preloaded="<?= $preloadedMembers !== [] ? '1' : '0' ?>">
+                        <?php if ($preloadedMembers !== []): ?>
+                        <div class="space-y-2">
+                            <?php foreach ($preloadedMembers as $member):
+                                $memberId = (int)$member['id'];
+                                $isChecked = in_array($memberId, $selectedVisibility, true);
+                                ?>
+                            <label class="flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded">
+                                <input type="checkbox" name="visibility_users[]" value="<?= $memberId ?>"
+                                       class="checkbox checkbox-primary" <?= $isChecked ? 'checked' : '' ?> />
+                                <div class="flex-1">
+                                    <div class="font-semibold"><?= htmlspecialchars((string)$member['name']) ?></div>
+                                    <div class="text-sm text-base-content/70"><?= htmlspecialchars((string)$member['email']) ?></div>
+                                </div>
+                            </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php else: ?>
                         <p class="text-base-content/50 text-sm">Select a team to see available members</p>
+                        <?php endif; ?>
                     </div>
                     <label class="label">
                         <span class="label-text-alt">Only selected members will see this event</span>
@@ -410,9 +463,10 @@ document.getElementById('team_id').addEventListener('change', function() {
     loadTeamMembers(this.value);
 });
 
-// Restore members after validation error
+// Restore members after validation error only if PHP did not already render them
+const membersContainer = document.getElementById('team-members-container');
 const initialTeamId = document.getElementById('team_id').value;
-if (initialTeamId) {
+if (initialTeamId && membersContainer.dataset.preloaded !== '1') {
     loadTeamMembers(initialTeamId);
 }
 
