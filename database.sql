@@ -280,3 +280,12 @@ STARTS CURRENT_TIMESTAMP
 ON COMPLETION PRESERVE
 ENABLE
 DO CALL purge_soft_deleted();
+
+-- =====================================================
+-- APP USER PRIVILEGES (soft-delete only; hard DELETE via root EVENT)
+-- Docker creates MYSQL_USER with ALL PRIVILEGES — narrow it here.
+-- Underscore in DB name is escaped (\_) so GRANT matches literally.
+-- =====================================================
+REVOKE ALL PRIVILEGES ON `team\_competition`.* FROM 'app_user'@'%';
+GRANT SELECT, INSERT, UPDATE ON `team\_competition`.* TO 'app_user'@'%';
+FLUSH PRIVILEGES;
