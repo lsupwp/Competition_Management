@@ -22,6 +22,7 @@ $activityLog = new \App\Services\ActivityLogService();
 
 // Get filters from query params
 $filters = [];
+$filterError = '';
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $perPage = 20;
 
@@ -32,17 +33,31 @@ if (isset($_GET['action']) && !empty($_GET['action'])) {
 if (isset($_GET['user_id']) && !empty($_GET['user_id'])) {
     $filters['user_id'] = (int)$_GET['user_id'];
 }
-if (isset($_GET['date_from']) && !empty($_GET['date_from'])) {
-    $filters['date_from'] = $_GET['date_from'] . ' 00:00:00';
-}
-if (isset($_GET['date_to']) && !empty($_GET['date_to'])) {
-    $filters['date_to'] = $_GET['date_to'] . ' 23:59:59';
+
+$dateFromRaw = trim((string)($_GET['date_from'] ?? ''));
+$dateToRaw = trim((string)($_GET['date_to'] ?? ''));
+
+if ($dateFromRaw !== '' && $dateToRaw !== '' && $dateFromRaw > $dateToRaw) {
+    $filterError = 'Date From cannot be after Date To.';
+} else {
+    if ($dateFromRaw !== '') {
+        $filters['date_from'] = $dateFromRaw . ' 00:00:00';
+    }
+    if ($dateToRaw !== '') {
+        $filters['date_to'] = $dateToRaw . ' 23:59:59';
+    }
 }
 
-$result = $activityLog->getLogs($filters, $page, $perPage);
-$logs = $result['logs'];
-$totalPages = $result['totalPages'];
-$total = $result['total'];
+if ($filterError !== '') {
+    $logs = [];
+    $totalPages = 0;
+    $total = 0;
+} else {
+    $result = $activityLog->getLogs($filters, $page, $perPage);
+    $logs = $result['logs'];
+    $totalPages = $result['totalPages'];
+    $total = $result['total'];
+}
 
 ob_start();
 ?>
@@ -50,6 +65,12 @@ ob_start();
     <div class="flex justify-between items-center mb-8">
         <h1 class="text-3xl font-bold">Activity Log</h1>
     </div>
+
+    <?php if ($filterError !== ''): ?>
+    <div class="alert alert-error mb-6">
+        <span><?= htmlspecialchars($filterError) ?></span>
+    </div>
+    <?php endif; ?>
 
     <!-- Filters -->
     <div class="card bg-base-100 shadow-xl mb-6">
