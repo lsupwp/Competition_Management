@@ -75,13 +75,6 @@ ob_start();
                 include __DIR__ . '/../../templates/components/input.php';
                 ?>
 
-                <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-2">
-                        <input type="checkbox" name="remember" class="checkbox checkbox-primary checkbox-sm" />
-                        <span class="label-text">Remember me</span>
-                    </label>
-                </div>
-
                 <?php
                 $btnText = 'Login';
                 $btnClass = 'btn-primary w-full';
