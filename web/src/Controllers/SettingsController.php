@@ -238,6 +238,8 @@ class SettingsController
             return ['flash' => ['error' => 'Failed to add password'], 'redirect' => '/settings'];
         }
 
+        SessionService::regenerate();
+
         $this->activityLog->log(
             'user.password.add',
             "User '$userName' added password",
@@ -283,6 +285,8 @@ class SettingsController
         if (!$this->accounts->setPasswordHash($userId, $passwordHash)) {
             return ['flash' => ['error' => 'Failed to update password'], 'redirect' => '/settings'];
         }
+
+        SessionService::regenerate();
 
         $this->activityLog->log(
             'user.password.change',

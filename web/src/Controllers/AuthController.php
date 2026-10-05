@@ -9,6 +9,7 @@ use App\Services\ActivityLogService;
 use App\Services\PasswordPolicyService;
 use App\Services\LoginRateLimiter;
 use App\Services\AdminAccessService;
+use App\Services\SessionService;
 
 class AuthController
 {
@@ -60,22 +61,45 @@ class AuthController
             return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
         }
 
+        // Unverified account already exists — resend verification only (do not overwrite password)
         if ($existingUser) {
-            $this->updateUnverifiedUser($existingUser['id'], $name, $password);
-            $userId = $existingUser['id'];
-        } else {
-            $userId = $this->createUser($email, $name, $password);
-            if ($userId === 0) {
-                $existingUser = $this->findUserByEmail($email);
-                if (($existingUser && $existingUser['email_verified_at'] !== null)
-                    || $this->emailHeldBySoftDeletedUser($email)) {
-                    return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
-                }
+            $userId = (int)$existingUser['id'];
+            $token = $this->generateVerificationToken();
+            $this->saveVerificationToken($userId, $token);
+            $sent = $this->emailService->sendVerificationEmail(
+                $email,
+                (string)($existingUser['name'] ?? $name),
+                $token
+            );
+            if (!$sent) {
                 return [
                     'success' => false,
-                    'error' => 'Unable to register this email. Please try again.',
+                    'error' => 'Unable to send verification email. Please try again.',
                 ];
             }
+            $this->activityLog->log(
+                'auth.register',
+                "Verification resent for unverified email",
+                $userId,
+                'user',
+                $userId,
+                ['email' => $email, 'resend' => true]
+            );
+            return [
+                'success' => true,
+                'message' => $genericMessage,
+            ];
+        }
+
+        $userId = $this->createUser($email, $name, $password);
+        if ($userId === 0) {
+            if ($this->emailHeldBySoftDeletedUser($email) || $this->findUserByEmail($email)) {
+                return ['success' => false, 'error' => self::EMAIL_IN_USE_ERROR];
+            }
+            return [
+                'success' => false,
+                'error' => 'Unable to register this email. Please try again.',
+            ];
         }
 
         $token = $this->generateVerificationToken();
@@ -446,6 +470,12 @@ class AuthController
         }
         $stmt->close();
 
+        // Drop any active session for this user on this browser after reset
+        SessionService::start();
+        if (isset($_SESSION['user']['id']) && (int)$_SESSION['user']['id'] === $userId) {
+            SessionService::destroy();
+        }
+
         $this->activityLog->log(
             'auth.password_reset',
             "User '{$user['name']}' reset password",
@@ -558,20 +588,6 @@ class AuthController
         $stmt->close();
 
         return $userId;
-    }
-
-    private function updateUnverifiedUser(int $userId, string $name, string $password): void
-    {
-        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-        
-        $stmt = $this->db->prepare("
-            UPDATE users 
-            SET name = ?, password_hash = ? 
-            WHERE id = ?
-        ");
-        $stmt->bind_param('ssi', $name, $passwordHash, $userId);
-        $stmt->execute();
-        $stmt->close();
     }
 
     private function generateVerificationToken(): string
