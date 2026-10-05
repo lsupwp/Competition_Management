@@ -477,7 +477,8 @@ class AuthController
             return ['success' => false, 'error' => 'Passwords do not match'];
         }
 
-        $stmt = $this->db->prepare("
+        $logUser = null;
+        $logStmt = $this->db->prepare("
             SELECT id, email, name
             FROM users
             WHERE password_reset_token = ?
@@ -485,12 +486,24 @@ class AuthController
               AND deleted_at IS NULL
             LIMIT 1
         ");
-        $stmt->bind_param('s', $token);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
+        $logStmt->bind_param('s', $token);
+        $logStmt->execute();
+        $logUser = $logStmt->get_result()->fetch_assoc();
+        $logStmt->close();
 
-        if (!$user) {
+        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
+        $stmt = $this->db->prepare("
+            UPDATE users
+            SET password_hash = ?,
+                password_reset_token = NULL,
+                password_reset_token_expires_at = NULL
+            WHERE password_reset_token = ?
+              AND password_reset_token_expires_at > NOW()
+              AND deleted_at IS NULL
+        ");
+        $stmt->bind_param('ss', $passwordHash, $token);
+        if (!$stmt->execute() || $stmt->affected_rows !== 1) {
+            $stmt->close();
             $this->activityLog->log(
                 'auth.password_reset_failed',
                 'Password reset failed: invalid or expired token',
@@ -504,30 +517,18 @@ class AuthController
                 'error' => 'Reset link is invalid or has expired'
             ];
         }
-
-        $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-        $userId = (int)$user['id'];
-        $stmt = $this->db->prepare("
-            UPDATE users
-            SET password_hash = ?,
-                password_reset_token = NULL,
-                password_reset_token_expires_at = NULL
-            WHERE id = ?
-        ");
-        $stmt->bind_param('si', $passwordHash, $userId);
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return ['success' => false, 'error' => 'Failed to update password. Please try again.'];
-        }
         $stmt->close();
 
+        $userId = $logUser ? (int)$logUser['id'] : null;
         $this->activityLog->log(
             'auth.password_reset',
-            "User '{$user['name']}' reset password",
+            $logUser
+                ? "User '{$logUser['name']}' reset password"
+                : 'User reset password via email link',
             $userId,
             'user',
             $userId,
-            ['email' => $user['email']]
+            ['email' => $logUser['email'] ?? null]
         );
 
         return [

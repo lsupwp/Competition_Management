@@ -215,8 +215,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['action']) && $_POST['action'] === 'add_password') {
         $newPassword = $_POST['new_password'] ?? '';
         $confirmPassword = $_POST['confirm_password'] ?? '';
-        
-        if (empty($newPassword)) {
+
+        if ($hasPassword) {
+            $flashData['error'] = 'Password already set. Use change password instead.';
+        } elseif (empty($newPassword)) {
             $flashData['error'] = 'Password is required';
         } elseif ($policyError = \App\Services\PasswordPolicyService::validate($newPassword)) {
             $flashData['error'] = $policyError;
@@ -224,17 +226,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flashData['error'] = 'Passwords do not match';
         } else {
             $passwordHash = password_hash($newPassword, PASSWORD_ARGON2ID);
-            
-            $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+
+            $stmt = $db->prepare("
+                UPDATE users
+                SET password_hash = ?
+                WHERE id = ?
+                  AND deleted_at IS NULL
+                  AND (password_hash IS NULL OR password_hash = '')
+            ");
             $stmt->bind_param('si', $passwordHash, $_SESSION['user']['id']);
-            
-            if ($stmt->execute()) {
+
+            if ($stmt->execute() && $stmt->affected_rows === 1) {
                 $flashData['success'] = 'Password added successfully';
                 $hasPassword = true;
                 \App\Services\SessionService::regenerate();
                 $_SESSION['user']['auth_stamp'] = \App\Services\SessionService::authStampFromHash($passwordHash);
-                
-                // Log password addition
+
                 $activityLog->log(
                     'user.password.add',
                     "User '$userName' added password",
@@ -243,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $userId
                 );
             } else {
-                $flashData['error'] = 'Failed to add password';
+                $flashData['error'] = 'Password already set. Use change password instead.';
             }
             $stmt->close();
         }

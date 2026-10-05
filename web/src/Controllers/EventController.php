@@ -382,7 +382,7 @@ class EventController
                     VALUES (?, ?, ?)
                 ");
                 $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
-                $stmt->execute();
+                $this->executeStatement($stmt, 'Failed to save event visibility');
                 $stmt->close();
             }
 
@@ -402,7 +402,7 @@ class EventController
                     $endDatetime = $date['end_datetime'];
                     $dateDescription = $date['description'] ?? '';
                     $stmt->bind_param('issss', $eventId, $dateType, $startDatetime, $endDatetime, $dateDescription);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event dates');
                     $stmt->close();
                 }
             }
@@ -421,7 +421,7 @@ class EventController
                     $tagName = $tag['name'];
                     $color = $this->sanitizeTagColor($tag['color'] ?? null);
                     $stmt->bind_param('iss', $eventId, $tagName, $color);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event tags');
                     $stmt->close();
                 }
             }
@@ -524,7 +524,7 @@ class EventController
             foreach ($softDeleteTables as $table) {
                 $stmt = $this->db->prepare("UPDATE {$table} SET deleted_at = NOW() WHERE event_id = ? AND deleted_at IS NULL");
                 $stmt->bind_param('i', $eventId);
-                $stmt->execute();
+                $this->executeStatement($stmt, 'Failed to update event schedule');
                 $stmt->close();
             }
 
@@ -535,7 +535,7 @@ class EventController
                     VALUES (?, ?, ?)
                 ");
                 $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
-                $stmt->execute();
+                $this->executeStatement($stmt, 'Failed to save event visibility');
                 $stmt->close();
             }
 
@@ -553,7 +553,7 @@ class EventController
                     $endDatetime = $date['end_datetime'];
                     $dateDescription = $date['description'] ?? '';
                     $stmt->bind_param('issss', $eventId, $dateType, $startDatetime, $endDatetime, $dateDescription);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event dates');
                     $stmt->close();
                 }
             }
@@ -570,7 +570,7 @@ class EventController
                     $tagName = $tag['name'];
                     $color = $this->sanitizeTagColor($tag['color'] ?? null);
                     $stmt->bind_param('iss', $eventId, $tagName, $color);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event tags');
                     $stmt->close();
                 }
             }
@@ -1340,5 +1340,15 @@ class EventController
         }
 
         return null;
+    }
+
+    /**
+     * @throws \Exception when prepare/execute fails
+     */
+    private function executeStatement(\mysqli_stmt $stmt, string $context): void
+    {
+        if (!$stmt->execute()) {
+            throw new \Exception($context);
+        }
     }
 }
