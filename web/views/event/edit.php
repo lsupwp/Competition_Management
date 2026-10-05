@@ -193,8 +193,8 @@ ob_start();
                         <span class="label-text font-semibold">Select Participating Members</span>
                     </label>
                     <div id="team-members-container" class="border border-base-300 rounded-lg p-4 max-h-64 overflow-y-auto"
-                         data-selected="<?= htmlspecialchars(json_encode(array_values($visibilityUserIds))) ?>"
-                         data-locked="<?= htmlspecialchars(json_encode(array_values($registeredUserIds))) ?>">
+                         data-selected="<?= h(js_json(array_values($visibilityUserIds))) ?>"
+                         data-locked="<?= h(js_json(array_values($registeredUserIds))) ?>">
                         <?php if (empty($teamMembers)): ?>
                             <p class="text-base-content/50 text-sm">Select a team to see available members</p>
                         <?php else: ?>
