@@ -131,13 +131,13 @@ ob_start();
                             <?php if (!empty($teamInfo['logo_url'])): ?>
                                 <img src="<?= htmlspecialchars($teamInfo['logo_url']) ?>" alt="<?= htmlspecialchars($teamInfo['name']) ?>" class="w-full h-full object-cover" />
                             <?php else: ?>
-                                <?= strtoupper(substr($teamInfo['name'], 0, 1)) ?>
+                                <?= h(strtoupper(substr((string)$teamInfo['name'], 0, 1))) ?>
                             <?php endif; ?>
                         </div>
                     </div>
                     <div>
                         <h3 class="text-xl font-bold"><?= htmlspecialchars($teamInfo['name']) ?></h3>
-                        <p class="text-sm text-base-content/70">Role: <span class="badge badge-primary"><?= ucfirst($teamInfo['role']) ?></span></p>
+                        <p class="text-sm text-base-content/70">Role: <span class="badge badge-primary"><?= h(ucfirst((string)$teamInfo['role'])) ?></span></p>
                     </div>
                 </div>
 

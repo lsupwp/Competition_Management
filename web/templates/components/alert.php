@@ -8,6 +8,6 @@ $alertClass = match($alertType ?? 'info') {
     default => 'alert-info',
 };
 ?>
-<div class="alert <?= $alertClass ?>">
-    <span><?= $alertMessage ?? '' ?></span>
+<div class="alert <?= htmlspecialchars($alertClass, ENT_QUOTES, 'UTF-8') ?>">
+    <span><?= htmlspecialchars((string)($alertMessage ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
 </div>

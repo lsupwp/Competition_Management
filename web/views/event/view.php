@@ -94,7 +94,7 @@ ob_start();
                     $canDeleteEvent = $eventController->canUserDeleteEvent($eventId, $viewerId);
                     ?>
                     <?php if ($canEditEvent): ?>
-                        <a href="/event/edit?id=<?= \App\Services\IdEncoder::encode($event['id']) ?>" class="btn btn-outline btn-sm">
+                        <a href="/event/edit?id=<?= h(\App\Services\IdEncoder::encode($event['id'])) ?>" class="btn btn-outline btn-sm">
                             Edit Event
                         </a>
                     <?php endif; ?>
@@ -166,7 +166,8 @@ ob_start();
                     <h2 class="text-lg font-semibold mb-3">Tags</h2>
                     <div class="flex flex-wrap gap-2">
                         <?php foreach ($event['tags'] as $tag): ?>
-                            <div class="badge badge-lg" style="background-color: <?= htmlspecialchars($tag['color']) ?>20; color: <?= htmlspecialchars($tag['color']) ?>; border-color: <?= htmlspecialchars($tag['color']) ?>">
+                            <?php $tagColor = css_hex_color($tag['color'] ?? null); ?>
+                            <div class="badge badge-lg" style="background-color: <?= h($tagColor) ?>20; color: <?= h($tagColor) ?>; border-color: <?= h($tagColor) ?>">
                                 <?= htmlspecialchars($tag['name']) ?>
                             </div>
                         <?php endforeach; ?>
@@ -292,7 +293,7 @@ ob_start();
                                         </td>
                                         <td>
                                             <span class="badge badge-<?= $reg['status'] === 'confirmed' ? 'success' : ($reg['status'] === 'cancelled' ? 'error' : 'warning') ?>">
-                                                <?= ucfirst($reg['status']) ?>
+                                                <?= h(ucfirst((string)$reg['status'])) ?>
                                             </span>
                                         </td>
                                         <td><?= date('M d, Y H:i', strtotime($reg['registered_at'])) ?></td>

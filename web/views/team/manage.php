@@ -232,7 +232,7 @@ ob_start();
                                 <?php if (!empty($selectedTeam['logo_url'])): ?>
                                     <img src="<?= htmlspecialchars($selectedTeam['logo_url']) ?>" alt="<?= htmlspecialchars($selectedTeam['name']) ?>" class="w-full h-full object-cover" />
                                 <?php else: ?>
-                                    <?= strtoupper(substr($selectedTeam['name'], 0, 1)) ?>
+                                    <?= h(strtoupper(substr((string)$selectedTeam['name'], 0, 1))) ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -240,8 +240,8 @@ ob_start();
                             <h2 class="card-title text-xl sm:text-2xl break-words"><?= htmlspecialchars($selectedTeam['name']) ?></h2>
                             <p class="text-sm text-base-content/70 break-words"><?= htmlspecialchars($selectedTeam['description'] ?? '') ?></p>
                             <div class="flex flex-wrap gap-2 mt-2">
-                                <span class="badge badge-outline"><?= $selectedTeam['member_count'] ?>/<?= $selectedTeam['max_members'] ?> members</span>
-                                <span class="badge badge-primary badge-sm">Your role: <?= ucfirst($selectedTeam['user_role']) ?></span>
+                                <span class="badge badge-outline"><?= (int)$selectedTeam['member_count'] ?>/<?= (int)$selectedTeam['max_members'] ?> members</span>
+                                <span class="badge badge-primary badge-sm">Your role: <?= h(ucfirst((string)$selectedTeam['user_role'])) ?></span>
                             </div>
                         </div>
                     </div>
@@ -256,7 +256,7 @@ ob_start();
                             <button class="btn btn-warning btn-sm" onclick="transferOwnershipModal.showModal()">
                                 Transfer Ownership
                             </button>
-                            <a href="/team/settings?id=<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>" class="btn btn-outline btn-sm">
+                            <a href="/team/settings?id=<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>" class="btn btn-outline btn-sm">
                                 Settings
                             </a>
                         <?php endif; ?>
@@ -275,7 +275,7 @@ ob_start();
                         <?php endif; ?>
                     </h3>
                     <form method="GET" class="flex flex-wrap gap-2 w-full sm:w-auto">
-                        <input type="hidden" name="id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                        <input type="hidden" name="id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
                         <input type="text" name="member_search" value="<?= htmlspecialchars($memberSearch) ?>" 
                                placeholder="Search members..." class="input input-bordered input-sm w-full sm:w-64" />
                         <button type="submit" class="btn btn-sm btn-primary">
@@ -284,7 +284,7 @@ ob_start();
                             </svg>
                         </button>
                         <?php if ($memberSearch): ?>
-                            <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>" class="btn btn-sm btn-ghost">Clear</a>
+                            <a href="/team/manage?id=<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>" class="btn btn-sm btn-ghost">Clear</a>
                         <?php endif; ?>
                     </form>
                 </div>
@@ -309,7 +309,7 @@ ob_start();
                                                     <?php if (!empty($member['avatar_url'])): ?>
                                                         <img src="<?= htmlspecialchars($member['avatar_url']) ?>" alt="<?= htmlspecialchars($member['name']) ?>" />
                                                     <?php else: ?>
-                                                        <?= strtoupper(substr($member['name'], 0, 1)) ?>
+                                                        <?= h(strtoupper(substr((string)$member['name'], 0, 1))) ?>
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
@@ -324,8 +324,8 @@ ob_start();
                                             <form method="POST" style="display:inline;">
                                                 <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                 <input type="hidden" name="action" value="change_role">
-                                                <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
-                                                <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
+                                                <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
+                                                <input type="hidden" name="target_user_id" value="<?= h(\App\Services\IdEncoder::encode($member['id'])) ?>">
                                                 <select name="new_role" class="select select-bordered select-sm" onchange="this.form.submit()">
                                                     <option value="admin" <?= $member['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
                                                     <option value="member" <?= $member['role'] === 'member' ? 'selected' : '' ?>>Member</option>
@@ -333,7 +333,7 @@ ob_start();
                                             </form>
                                         <?php else: ?>
                                             <span class="badge badge-<?= $member['role'] === 'owner' ? 'primary' : ($member['role'] === 'admin' ? 'secondary' : 'ghost') ?>">
-                                                <?= ucfirst($member['role']) ?>
+                                                <?= h(ucfirst((string)$member['role'])) ?>
                                             </span>
                                         <?php endif; ?>
                                     </td>
@@ -350,7 +350,7 @@ ob_start();
                                                       data-confirm-class="btn-error">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="leave_team">
-                                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                                    <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
                                                     <button type="submit" class="btn btn-error btn-sm">
                                                         Leave Team
                                                     </button>
@@ -365,8 +365,8 @@ ob_start();
                                                       data-confirm-class="btn-error">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="kick_member">
-                                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
-                                                    <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
+                                                    <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
+                                                    <input type="hidden" name="target_user_id" value="<?= h(\App\Services\IdEncoder::encode($member['id'])) ?>">
                                                     <button type="submit" class="btn btn-error btn-sm btn-outline">
                                                         Kick
                                                     </button>
@@ -379,8 +379,8 @@ ob_start();
                                                       data-confirm-class="btn-error">
                                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                     <input type="hidden" name="action" value="kick_member">
-                                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
-                                                    <input type="hidden" name="target_user_id" value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
+                                                    <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
+                                                    <input type="hidden" name="target_user_id" value="<?= h(\App\Services\IdEncoder::encode($member['id'])) ?>">
                                                     <button type="submit" class="btn btn-error btn-sm btn-outline">
                                                         Kick
                                                     </button>
@@ -424,7 +424,7 @@ ob_start();
                                 <form method="POST" action="/team/invite" class="space-y-4">
                                     <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                     <input type="hidden" name="action" value="invite_email">
-                                    <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                    <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
                                     
                                     <div class="form-control w-full">
                                         <label class="label">
@@ -447,7 +447,7 @@ ob_start();
                                     <form method="POST" action="/team/invite" class="space-y-4">
                                         <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                         <input type="hidden" name="action" value="generate_token">
-                                        <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                        <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
                                         
                                         <p class="text-sm text-base-content/70">Generate a shareable invite link. Anyone with this link can join as a member.</p>
                                         
@@ -487,8 +487,8 @@ ob_start();
                                                               data-confirm-class="btn-error">
                                                             <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                                             <input type="hidden" name="action" value="revoke_token">
-                                                            <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
-                                                            <input type="hidden" name="invitation_id" value="<?= \App\Services\IdEncoder::encode($tokenData['id']) ?>">
+                                                            <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
+                                                            <input type="hidden" name="invitation_id" value="<?= h(\App\Services\IdEncoder::encode($tokenData['id'])) ?>">
                                                             <button type="submit" class="btn btn-sm btn-error btn-outline">Revoke</button>
                                                         </form>
                                                     <?php endif; ?>
@@ -530,7 +530,7 @@ ob_start();
                                   data-confirm-class="btn-warning">
                                 <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
                                 <input type="hidden" name="action" value="transfer_ownership">
-                                <input type="hidden" name="team_id" value="<?= \App\Services\IdEncoder::encode($selectedTeam['id']) ?>">
+                                <input type="hidden" name="team_id" value="<?= h(\App\Services\IdEncoder::encode($selectedTeam['id'])) ?>">
                                 
                                 <div class="form-control w-full">
                                     <label class="label">
@@ -540,8 +540,8 @@ ob_start();
                                         <option value="">Choose a member...</option>
                                         <?php foreach ($selectedTeam['members'] as $member): ?>
                                             <?php if ($member['id'] !== $_SESSION['user']['id'] && $member['role'] !== 'owner'): ?>
-                                                <option value="<?= \App\Services\IdEncoder::encode($member['id']) ?>">
-                                                    <?= htmlspecialchars($member['name']) ?> (<?= ucfirst($member['role']) ?>)
+                                                <option value="<?= h(\App\Services\IdEncoder::encode($member['id'])) ?>">
+                                                    <?= htmlspecialchars($member['name']) ?> (<?= h(ucfirst((string)$member['role'])) ?>)
                                                 </option>
                                             <?php endif; ?>
                                         <?php endforeach; ?>
@@ -606,11 +606,11 @@ ob_start();
             </div>
         <?php else: ?>
         <div class="mb-4 text-sm text-base-content/70">
-            Showing <?= count($allTeams) ?> of <?= $total ?> teams
+            Showing <?= count($allTeams) ?> of <?= (int)$total ?> teams
         </div>
         <div class="grid gap-4">
             <?php foreach ($allTeams as $team): ?>
-                <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($team['id']) ?>" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
+                <a href="/team/manage?id=<?= h(\App\Services\IdEncoder::encode($team['id'])) ?>" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow cursor-pointer">
                     <div class="card-body">
                         <div class="flex items-center gap-4">
                             <div class="avatar">
@@ -618,7 +618,7 @@ ob_start();
                                     <?php if (!empty($team['logo_url'])): ?>
                                         <img src="<?= htmlspecialchars($team['logo_url']) ?>" alt="<?= htmlspecialchars($team['name']) ?>" class="w-full h-full object-cover" />
                                     <?php else: ?>
-                                        <?= strtoupper(substr($team['name'], 0, 1)) ?>
+                                        <?= h(strtoupper(substr((string)$team['name'], 0, 1))) ?>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -626,8 +626,8 @@ ob_start();
                                 <h2 class="card-title text-xl"><?= htmlspecialchars($team['name']) ?></h2>
                                 <p class="text-sm text-base-content/70"><?= htmlspecialchars($team['description'] ?? '') ?></p>
                                 <div class="flex gap-2 mt-2">
-                                    <span class="badge badge-outline"><?= $team['member_count'] ?>/<?= $team['max_members'] ?> members</span>
-                                    <span class="badge badge-primary badge-sm">Your role: <?= ucfirst($team['user_role']) ?></span>
+                                    <span class="badge badge-outline"><?= (int)$team['member_count'] ?>/<?= (int)$team['max_members'] ?> members</span>
+                                    <span class="badge badge-primary badge-sm">Your role: <?= h(ucfirst((string)$team['user_role'])) ?></span>
                                 </div>
                             </div>
                             <div class="text-base-content/50">
@@ -653,7 +653,7 @@ ob_start();
                     ?>
                     
                     <?php if ($page > 1): ?>
-                        <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page - 1 ?>" class="join-item btn btn-sm">«</a>
+                        <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)($page - 1) ?>" class="join-item btn btn-sm">«</a>
                     <?php endif; ?>
                     
                     <?php
@@ -663,14 +663,14 @@ ob_start();
                     
                     for ($i = $startPage; $i <= $endPage; $i++):
                     ?>
-                        <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $i ?>" 
+                        <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)$i ?>" 
                            class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
-                            <?= $i ?>
+                            <?= (int)$i ?>
                         </a>
                     <?php endfor; ?>
                     
                     <?php if ($page < $totalPages): ?>
-                        <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page + 1 ?>" class="join-item btn btn-sm">»</a>
+                        <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)($page + 1) ?>" class="join-item btn btn-sm">»</a>
                     <?php endif; ?>
                 </div>
             </div>

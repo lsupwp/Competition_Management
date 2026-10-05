@@ -115,7 +115,7 @@ ob_start();
         <div class="card-body">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="card-title text-xl">Activities</h2>
-                <span class="text-sm text-base-content/70"><?= $total ?> total activities</span>
+                <span class="text-sm text-base-content/70"><?= (int)$total ?> total activities</span>
             </div>
 
             <?php if (empty($logs)): ?>
@@ -145,7 +145,7 @@ ob_start();
                                                         <?php if (!empty($log['user_avatar'])): ?>
                                                             <img src="<?= htmlspecialchars($log['user_avatar']) ?>" alt="<?= htmlspecialchars($log['user_name']) ?>" />
                                                         <?php else: ?>
-                                                            <?= strtoupper(substr($log['user_name'], 0, 1)) ?>
+                                                            <?= h(strtoupper(substr((string)$log['user_name'], 0, 1))) ?>
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
@@ -194,7 +194,7 @@ ob_start();
                             ?>
                             
                             <?php if ($page > 1): ?>
-                                <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page - 1 ?>" class="join-item btn btn-sm">«</a>
+                                <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)($page - 1) ?>" class="join-item btn btn-sm">«</a>
                             <?php endif; ?>
                             
                             <?php
@@ -204,14 +204,14 @@ ob_start();
                             
                             for ($i = $startPage; $i <= $endPage; $i++):
                             ?>
-                                <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $i ?>" 
+                                <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)$i ?>" 
                                    class="join-item btn btn-sm <?= $i === $page ? 'btn-active' : '' ?>">
-                                    <?= $i ?>
+                                    <?= (int)$i ?>
                                 </a>
                             <?php endfor; ?>
                             
                             <?php if ($page < $totalPages): ?>
-                                <a href="?<?= $queryString ?><?= $queryString ? '&' : '' ?>page=<?= $page + 1 ?>" class="join-item btn btn-sm">»</a>
+                                <a href="?<?= h($queryString) ?><?= $queryString ? '&' : '' ?>page=<?= (int)($page + 1) ?>" class="join-item btn btn-sm">»</a>
                             <?php endif; ?>
                         </div>
                     </div>

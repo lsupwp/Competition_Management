@@ -55,7 +55,7 @@
                         <img alt="User Avatar" src="<?= htmlspecialchars($_SESSION['user']['avatar_url']) ?>" />
                         <?php else: ?>
                         <div class="bg-primary text-primary-content flex items-center justify-center h-full w-full text-lg font-bold">
-                            <?= strtoupper(substr($_SESSION['user']['name'] ?? 'U', 0, 1)) ?>
+                            <?= htmlspecialchars(strtoupper(substr((string)($_SESSION['user']['name'] ?? 'U'), 0, 1)), ENT_QUOTES, 'UTF-8') ?>
                         </div>
                         <?php endif; ?>
                     </div>

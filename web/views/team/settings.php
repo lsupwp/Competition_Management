@@ -107,7 +107,7 @@ ob_start();
         <h1 class="text-xl sm:text-3xl font-bold break-words">
             <a href="/team/manage" class="link link-hover">Manage Teams</a>
             <span class="text-base-content/40">/</span>
-            <a href="/team/manage?id=<?= \App\Services\IdEncoder::encode($teamId) ?>" class="link link-hover"><?= htmlspecialchars($selectedTeam['name']) ?></a>
+            <a href="/team/manage?id=<?= h(\App\Services\IdEncoder::encode($teamId)) ?>" class="link link-hover"><?= htmlspecialchars($selectedTeam['name']) ?></a>
             <span class="text-base-content/40">/</span>
             Settings
         </h1>
@@ -152,7 +152,7 @@ ob_start();
                                 <?php if (!empty($selectedTeam['logo_url'])): ?>
                                     <img src="<?= htmlspecialchars($selectedTeam['logo_url']) ?>" alt="Team logo" class="w-full h-full object-cover" />
                                 <?php else: ?>
-                                    <?= strtoupper(substr($selectedTeam['name'], 0, 1)) ?>
+                                    <?= h(strtoupper(substr((string)$selectedTeam['name'], 0, 1))) ?>
                                 <?php endif; ?>
                             </div>
                         </label>
@@ -189,7 +189,7 @@ ob_start();
                         <span class="label-text font-semibold">Maximum Members</span>
                         <span class="label-text-alt">Limit team size</span>
                     </label>
-                    <input type="number" name="max_members" value="<?= $selectedTeam['max_members'] ?>" 
+                    <input type="number" name="max_members" value="<?= (int)$selectedTeam['max_members'] ?>" 
                            class="input input-bordered w-full" min="2" max="100" required />
                     <label class="label">
                         <span class="label-text-alt">Must be between 2 and 100</span>

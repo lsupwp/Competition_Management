@@ -354,7 +354,7 @@ ob_start();
                                     <img src="<?= htmlspecialchars($_SESSION['user']['avatar_url']) ?>" alt="Avatar" />
                                     <?php else: ?>
                                     <div class="bg-primary text-primary-content flex items-center justify-center h-full w-full text-4xl font-bold">
-                                        <?= strtoupper(substr($_SESSION['user']['name'] ?? 'U', 0, 1)) ?>
+                                        <?= h(strtoupper(substr((string)($_SESSION['user']['name'] ?? 'U'), 0, 1))) ?>
                                     </div>
                                     <?php endif; ?>
                                 </div>

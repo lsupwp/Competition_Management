@@ -792,7 +792,8 @@ class EventController
         while ($row = $result->fetch_assoc()) {
             $dateType = $row['date_type'] ?: 'other';
             $typeLabel = ucfirst(str_replace('_', ' ', $dateType));
-            $color = $row['tag_color'] ?: ($defaultColors[$dateType] ?? $defaultColors['other']);
+            $rawColor = $row['tag_color'] ?: ($defaultColors[$dateType] ?? $defaultColors['other']);
+            $color = $this->sanitizeTagColor($rawColor);
             $title = $typeLabel . ': ' . $row['title'];
 
             $items[] = [

@@ -261,8 +261,8 @@ ob_start();
                                     <label class="label"><span class="label-text">Date Type</span></label>
                                     <select name="dates[<?= $i ?>][date_type]" class="select select-bordered" required>
                                         <?php foreach ($dateTypeOptions as $value => $label): ?>
-                                            <option value="<?= $value ?>" <?= $dateType === $value ? 'selected' : '' ?>>
-                                                <?= $label ?>
+                                            <option value="<?= h($value) ?>" <?= $dateType === $value ? 'selected' : '' ?>>
+                                                <?= h($label) ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
