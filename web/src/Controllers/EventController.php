@@ -201,7 +201,29 @@ class EventController
     }
 
     /**
-     * Get team by ID
+     * Get team by ID only if the user is an active member (no name leak to outsiders).
+     */
+    public function getTeamByIdForMember(int $teamId, int $userId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT t.id, t.name, t.description
+            FROM teams t
+            INNER JOIN team_members tm
+                ON tm.team_id = t.id
+               AND tm.user_id = ?
+               AND tm.deleted_at IS NULL
+            WHERE t.id = ? AND t.deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('ii', $userId, $teamId);
+        $stmt->execute();
+        $team = $stmt->get_result()->fetch_assoc() ?: null;
+        $stmt->close();
+        return $team;
+    }
+
+    /**
+     * Get team by ID (internal; does not check membership)
      */
     public function getTeamById(int $teamId): ?array
     {
@@ -352,20 +374,16 @@ class EventController
             $eventId = $this->db->insert_id;
             $stmt->close();
 
-            // Insert event visibility (only selected users can see)
-            if (!empty($visibilityUserIds) && is_array($visibilityUserIds)) {
-                foreach ($visibilityUserIds as $visibilityUserId) {
-                    $visibilityUserId = (int)$visibilityUserId;
-                    if ($visibilityUserId > 0) {
-                        $stmt = $this->db->prepare("
-                            INSERT INTO event_visibility (event_id, user_id, granted_by)
-                            VALUES (?, ?, ?)
-                        ");
-                        $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
-                }
+            // Insert event visibility (team members only)
+            $visibilityUserIds = $this->filterVisibilityUserIds($teamId, $visibilityUserIds);
+            foreach ($visibilityUserIds as $visibilityUserId) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_visibility (event_id, user_id, granted_by)
+                    VALUES (?, ?, ?)
+                ");
+                $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
+                $this->executeStatement($stmt, 'Failed to save event visibility');
+                $stmt->close();
             }
 
             // Insert event dates
@@ -384,7 +402,7 @@ class EventController
                     $endDatetime = $date['end_datetime'];
                     $dateDescription = $date['description'] ?? '';
                     $stmt->bind_param('issss', $eventId, $dateType, $startDatetime, $endDatetime, $dateDescription);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event dates');
                     $stmt->close();
                 }
             }
@@ -401,9 +419,9 @@ class EventController
                         VALUES (?, ?, ?)
                     ");
                     $tagName = $tag['name'];
-                    $color = $tag['color'] ?? '#3b82f6';
+                    $color = $this->sanitizeTagColor($tag['color'] ?? null);
                     $stmt->bind_param('iss', $eventId, $tagName, $color);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event tags');
                     $stmt->close();
                 }
             }
@@ -506,23 +524,19 @@ class EventController
             foreach ($softDeleteTables as $table) {
                 $stmt = $this->db->prepare("UPDATE {$table} SET deleted_at = NOW() WHERE event_id = ? AND deleted_at IS NULL");
                 $stmt->bind_param('i', $eventId);
-                $stmt->execute();
+                $this->executeStatement($stmt, 'Failed to update event schedule');
                 $stmt->close();
             }
 
-            if (!empty($visibilityUserIds) && is_array($visibilityUserIds)) {
-                foreach ($visibilityUserIds as $visibilityUserId) {
-                    $visibilityUserId = (int)$visibilityUserId;
-                    if ($visibilityUserId > 0) {
-                        $stmt = $this->db->prepare("
-                            INSERT INTO event_visibility (event_id, user_id, granted_by)
-                            VALUES (?, ?, ?)
-                        ");
-                        $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
-                }
+            $visibilityUserIds = $this->filterVisibilityUserIds($teamId, $visibilityUserIds, $registeredUserIds);
+            foreach ($visibilityUserIds as $visibilityUserId) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_visibility (event_id, user_id, granted_by)
+                    VALUES (?, ?, ?)
+                ");
+                $stmt->bind_param('iii', $eventId, $visibilityUserId, $userId);
+                $this->executeStatement($stmt, 'Failed to save event visibility');
+                $stmt->close();
             }
 
             if (isset($data['dates']) && is_array($data['dates'])) {
@@ -539,7 +553,7 @@ class EventController
                     $endDatetime = $date['end_datetime'];
                     $dateDescription = $date['description'] ?? '';
                     $stmt->bind_param('issss', $eventId, $dateType, $startDatetime, $endDatetime, $dateDescription);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event dates');
                     $stmt->close();
                 }
             }
@@ -554,9 +568,9 @@ class EventController
                         VALUES (?, ?, ?)
                     ");
                     $tagName = $tag['name'];
-                    $color = $tag['color'] ?? '#3b82f6';
+                    $color = $this->sanitizeTagColor($tag['color'] ?? null);
                     $stmt->bind_param('iss', $eventId, $tagName, $color);
-                    $stmt->execute();
+                    $this->executeStatement($stmt, 'Failed to save event tags');
                     $stmt->close();
                 }
             }
@@ -610,6 +624,7 @@ class EventController
         $stmt = $this->db->prepare("
             SELECT id FROM team_members
             WHERE team_id = ? AND user_id = ? AND deleted_at IS NULL
+              AND EXISTS (SELECT 1 FROM teams t WHERE t.id = team_id AND t.deleted_at IS NULL)
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();
@@ -625,8 +640,11 @@ class EventController
     public function isUserTeamManager(int $teamId, int $userId): bool
     {
         $stmt = $this->db->prepare("
-            SELECT id FROM team_members
-            WHERE team_id = ? AND user_id = ? AND role IN ('owner', 'admin') AND deleted_at IS NULL
+            SELECT tm.id
+            FROM team_members tm
+            INNER JOIN teams t ON t.id = tm.team_id
+            WHERE tm.team_id = ? AND tm.user_id = ? AND tm.role IN ('owner', 'admin')
+              AND tm.deleted_at IS NULL AND t.deleted_at IS NULL
         ");
         $stmt->bind_param('ii', $teamId, $userId);
         $stmt->execute();
@@ -778,7 +796,8 @@ class EventController
         while ($row = $result->fetch_assoc()) {
             $dateType = $row['date_type'] ?: 'other';
             $typeLabel = ucfirst(str_replace('_', ' ', $dateType));
-            $color = $row['tag_color'] ?: ($defaultColors[$dateType] ?? $defaultColors['other']);
+            $rawColor = $row['tag_color'] ?: ($defaultColors[$dateType] ?? $defaultColors['other']);
+            $color = $this->sanitizeTagColor($rawColor);
             $title = $typeLabel . ': ' . $row['title'];
 
             $items[] = [
@@ -881,15 +900,10 @@ class EventController
      */
     public function registerForEvent(int $eventId, int $userId, ?int $teamId = null): array
     {
-        // Check if event exists
+        // Check if event exists and is visible
         $event = $this->getEventById($eventId);
-        if (!$event) {
+        if (!$event || !$this->canUserSeeEvent($eventId, $userId)) {
             return ['success' => false, 'error' => 'Event not found'];
-        }
-
-        // Check if user can see this event (visibility check)
-        if (!$this->canUserSeeEvent($eventId, $userId)) {
-            return ['success' => false, 'error' => 'You do not have permission to register for this event'];
         }
 
         // Check if already registered
@@ -907,28 +921,82 @@ class EventController
             }
         }
 
-        // Insert registration (team_id may be NULL for individual registration)
-        if ($teamId === null) {
-            $stmt = $this->db->prepare("
-                INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
-                VALUES (?, ?, NULL, 'confirmed', NOW())
-            ");
-            $stmt->bind_param('ii', $eventId, $userId);
-        } else {
-            $stmt = $this->db->prepare("
-                INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
-                VALUES (?, ?, ?, 'confirmed', NOW())
-            ");
-            $stmt->bind_param('iii', $eventId, $userId, $teamId);
-        }
-        
-        if (!$stmt->execute()) {
-            $stmt->close();
+        // Insert or revive registration
+        $this->db->begin_transaction();
+        try {
+            if ($teamId === null) {
+                $revive = $this->db->prepare("
+                    UPDATE event_registrations
+                    SET deleted_at = NULL,
+                        status = 'confirmed',
+                        team_id = NULL,
+                        registered_at = NOW()
+                    WHERE event_id = ? AND user_id = ? AND deleted_at IS NOT NULL
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $revive->bind_param('ii', $eventId, $userId);
+            } else {
+                $revive = $this->db->prepare("
+                    UPDATE event_registrations
+                    SET deleted_at = NULL,
+                        status = 'confirmed',
+                        team_id = ?,
+                        registered_at = NOW()
+                    WHERE event_id = ? AND user_id = ? AND deleted_at IS NOT NULL
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $revive->bind_param('iii', $teamId, $eventId, $userId);
+            }
+            $revive->execute();
+            $revived = $revive->affected_rows > 0;
+            $revive->close();
+
+            if ($revived) {
+                $idStmt = $this->db->prepare("
+                    SELECT id FROM event_registrations
+                    WHERE event_id = ? AND user_id = ? AND deleted_at IS NULL
+                    ORDER BY id DESC LIMIT 1
+                ");
+                $idStmt->bind_param('ii', $eventId, $userId);
+                $idStmt->execute();
+                $registrationId = (int)($idStmt->get_result()->fetch_assoc()['id'] ?? 0);
+                $idStmt->close();
+            } elseif ($teamId === null) {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
+                    VALUES (?, ?, NULL, 'confirmed', NOW())
+                ");
+                $stmt->bind_param('ii', $eventId, $userId);
+                if (!$stmt->execute()) {
+                    $stmt->close();
+                    $this->db->rollback();
+                    return ['success' => false, 'error' => 'Failed to register for event'];
+                }
+                $registrationId = $this->db->insert_id;
+                $stmt->close();
+            } else {
+                $stmt = $this->db->prepare("
+                    INSERT INTO event_registrations (event_id, user_id, team_id, status, registered_at)
+                    VALUES (?, ?, ?, 'confirmed', NOW())
+                ");
+                $stmt->bind_param('iii', $eventId, $userId, $teamId);
+                if (!$stmt->execute()) {
+                    $stmt->close();
+                    $this->db->rollback();
+                    return ['success' => false, 'error' => 'Failed to register for event'];
+                }
+                $registrationId = $this->db->insert_id;
+                $stmt->close();
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            error_log('registerForEvent failed: ' . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to register for event'];
         }
-        
-        $registrationId = $this->db->insert_id;
-        $stmt->close();
 
         // Log activity
         $this->activityLog->log(
@@ -953,7 +1021,7 @@ class EventController
     public function unregisterFromEvent(int $eventId, int $targetUserId, int $actorUserId): array
     {
         $event = $this->getEventById($eventId);
-        if (!$event) {
+        if (!$event || !$this->canUserSeeEvent($eventId, $actorUserId)) {
             return ['success' => false, 'error' => 'Event not found'];
         }
 
@@ -1020,7 +1088,7 @@ class EventController
     public function deleteEvent(int $eventId, int $userId): array
     {
         $event = $this->getEventById($eventId);
-        if (!$event) {
+        if (!$event || !$this->canUserSeeEvent($eventId, $userId)) {
             return ['success' => false, 'error' => 'Event not found'];
         }
 
@@ -1195,6 +1263,51 @@ class EventController
     }
 
     /**
+     * Keep only active team members (plus optional locked IDs such as registrants).
+     *
+     * @param list<int|string>|mixed $visibilityUserIds
+     * @param list<int> $extraAllowedIds
+     * @return list<int>
+     */
+    private function filterVisibilityUserIds(int $teamId, $visibilityUserIds, array $extraAllowedIds = []): array
+    {
+        if (!is_array($visibilityUserIds)) {
+            $visibilityUserIds = [];
+        }
+
+        $memberIds = [];
+        foreach ($this->getTeamMembers($teamId) as $member) {
+            $memberIds[(int)$member['id']] = true;
+        }
+        foreach ($extraAllowedIds as $extraId) {
+            $extraId = (int)$extraId;
+            if ($extraId > 0) {
+                $memberIds[$extraId] = true;
+            }
+        }
+
+        $allowed = [];
+        foreach ($visibilityUserIds as $visibilityUserId) {
+            $visibilityUserId = (int)$visibilityUserId;
+            if ($visibilityUserId > 0 && isset($memberIds[$visibilityUserId])) {
+                $allowed[$visibilityUserId] = $visibilityUserId;
+            }
+        }
+
+        return array_values($allowed);
+    }
+
+    /** Allow only #RGB or #RRGGBB hex colors. */
+    private function sanitizeTagColor(?string $color): string
+    {
+        $color = trim((string)$color);
+        if (preg_match('/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/', $color) === 1) {
+            return strtolower($color);
+        }
+        return '#3b82f6';
+    }
+
+    /**
      * Ensure every provided date range has end after start.
      */
     private function validateEventDates($dates): ?string
@@ -1227,5 +1340,15 @@ class EventController
         }
 
         return null;
+    }
+
+    /**
+     * @throws \Exception when prepare/execute fails
+     */
+    private function executeStatement(\mysqli_stmt $stmt, string $context): void
+    {
+        if (!$stmt->execute()) {
+            throw new \Exception($context);
+        }
     }
 }

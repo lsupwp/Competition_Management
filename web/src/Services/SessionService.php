@@ -36,6 +36,7 @@ final class SessionService
         }
 
         self::enforceTimeout();
+        self::enforceAuthStamp();
         AdminAccessService::enforceScope();
     }
 
@@ -47,6 +48,96 @@ final class SessionService
 
         session_regenerate_id(true);
         $_SESSION['last_activity'] = time();
+    }
+
+    /**
+     * Fingerprint of password_hash so password change/reset invalidates other sessions.
+     */
+    public static function authStampFromHash(?string $passwordHash): string
+    {
+        return hash('sha256', (string)$passwordHash);
+    }
+
+    public static function destroyAuthenticatedSession(?string $flashError = null): void
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params['path'],
+                $params['domain'],
+                (bool)$params['secure'],
+                (bool)$params['httponly']
+            );
+        }
+        session_destroy();
+        session_start();
+        if ($flashError !== null && $flashError !== '') {
+            $_SESSION['flash_error'] = $flashError;
+        }
+    }
+
+    public static function enforceAuthStamp(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE || !isset($_SESSION['user']['id'])) {
+            return;
+        }
+
+        $userId = (int)$_SESSION['user']['id'];
+        $stamp = (string)($_SESSION['user']['auth_stamp'] ?? '');
+
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->prepare("
+                SELECT password_hash, role, deleted_at
+                FROM users
+                WHERE id = ?
+                LIMIT 1
+            ");
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            error_log('Session auth stamp check failed: ' . $e->getMessage());
+            return;
+        }
+
+        if (!$row || $row['deleted_at'] !== null) {
+            self::destroyAuthenticatedSession('Your session is no longer valid. Please log in again.');
+            if (!headers_sent()) {
+                header('Location: /auth/login');
+                exit;
+            }
+            return;
+        }
+
+        $currentStamp = self::authStampFromHash($row['password_hash'] ?? null);
+        // First request after deploy: adopt stamp without forcing logout
+        if ($stamp === '') {
+            $_SESSION['user']['auth_stamp'] = $currentStamp;
+            $_SESSION['user']['role'] = $row['role'] ?? 'user';
+            return;
+        }
+
+        if (!hash_equals($currentStamp, $stamp)) {
+            self::destroyAuthenticatedSession('Your password was changed. Please log in again.');
+            if (!headers_sent()) {
+                header('Location: /auth/login');
+                exit;
+            }
+            return;
+        }
+
+        // Keep role in sync with DB (admin demotion / promotion)
+        $_SESSION['user']['role'] = $row['role'] ?? 'user';
     }
 
     public static function enforceTimeout(): void
@@ -70,23 +161,7 @@ final class SessionService
         $last = (int)($_SESSION['last_activity'] ?? $now);
 
         if (($now - $last) > $timeout) {
-            $_SESSION = [];
-            if (ini_get('session.use_cookies')) {
-                $params = session_get_cookie_params();
-                setcookie(
-                    session_name(),
-                    '',
-                    time() - 42000,
-                    $params['path'],
-                    $params['domain'],
-                    (bool)$params['secure'],
-                    (bool)$params['httponly']
-                );
-            }
-            session_destroy();
-
-            session_start();
-            $_SESSION['flash_error'] = 'Your session expired. Please log in again.';
+            self::destroyAuthenticatedSession('Your session expired. Please log in again.');
 
             if (!headers_sent()) {
                 header('Location: /auth/login');

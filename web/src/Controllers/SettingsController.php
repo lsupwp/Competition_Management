@@ -239,6 +239,7 @@ class SettingsController
         }
 
         SessionService::regenerate();
+        $_SESSION['user']['auth_stamp'] = SessionService::authStampFromHash($passwordHash);
 
         $this->activityLog->log(
             'user.password.add',
@@ -287,6 +288,7 @@ class SettingsController
         }
 
         SessionService::regenerate();
+        $_SESSION['user']['auth_stamp'] = SessionService::authStampFromHash($passwordHash);
 
         $this->activityLog->log(
             'user.password.change',

@@ -25,7 +25,7 @@ if (!$eventId) {
 }
 
 $event = $eventController->getEventById($eventId);
-if (!$event) {
+if (!$event || !$eventController->canUserSeeEvent($eventId, $userId)) {
     $_SESSION['flash_error'] = 'Event not found';
     header('Location: /event');
     exit;
@@ -67,45 +67,152 @@ $dateTypeOptions = [
     'other' => 'Other',
 ];
 
-$toDatetimeLocal = static function (?string $dt): string {
-    if (empty($dt)) {
+$normalizeDatetimeLocal = static function (?string $value): string {
+    $value = trim((string)$value);
+    if ($value === '') {
         return '';
     }
-    return date('Y-m-d\TH:i', strtotime($dt));
+    $value = str_replace(' ', 'T', $value);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $value) === 1) {
+        return substr($value, 0, 16);
+    }
+    $ts = strtotime($value);
+    return $ts ? date('Y-m-d\TH:i', $ts) : '';
 };
 
+$normalizeDateRows = static function ($raw) use ($normalizeDatetimeLocal): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+    $rows = [];
+    foreach (array_values($raw) as $dateRow) {
+        if (!is_array($dateRow)) {
+            continue;
+        }
+        $rows[] = [
+            'date_type' => (string)($dateRow['date_type'] ?? 'competition'),
+            'description' => (string)($dateRow['description'] ?? ''),
+            'start_datetime' => $normalizeDatetimeLocal($dateRow['start_datetime'] ?? ''),
+            'end_datetime' => $normalizeDatetimeLocal($dateRow['end_datetime'] ?? ''),
+        ];
+    }
+    return $rows;
+};
+
+$normalizeTagRows = static function ($raw): array {
+    if (!is_array($raw)) {
+        return [];
+    }
+    $rows = [];
+    foreach (array_values($raw) as $tagRow) {
+        if (!is_array($tagRow)) {
+            continue;
+        }
+        $rows[] = [
+            'name' => (string)($tagRow['name'] ?? ''),
+            'color' => (string)($tagRow['color'] ?? '#3b82f6'),
+        ];
+    }
+    return $rows;
+};
+
+$captureOldFromPost = static function () use ($normalizeDateRows, $normalizeTagRows, $registeredUserIds): array {
+    $visibility = $_POST['visibility_users'] ?? [];
+    if (!is_array($visibility)) {
+        $visibility = [];
+    }
+    $visibilityJson = json_decode((string)($_POST['visibility_json'] ?? ''), true);
+    if (is_array($visibilityJson) && $visibilityJson !== []) {
+        $visibility = $visibilityJson;
+    }
+
+    $dates = $normalizeDateRows($_POST['dates'] ?? null);
+    $datesJson = json_decode((string)($_POST['dates_json'] ?? ''), true);
+    if (is_array($datesJson)) {
+        $fromJson = $normalizeDateRows($datesJson);
+        if (count($fromJson) >= count($dates)) {
+            $dates = $fromJson;
+        }
+    }
+
+    $tags = $normalizeTagRows($_POST['tags'] ?? null);
+    $tagsJson = json_decode((string)($_POST['tags_json'] ?? ''), true);
+    if (is_array($tagsJson)) {
+        $fromJson = $normalizeTagRows($tagsJson);
+        if (count($fromJson) >= count($tags)) {
+            $tags = $fromJson;
+        }
+    }
+
+    return [
+        'title' => $_POST['title'] ?? '',
+        'description' => $_POST['description'] ?? '',
+        'location' => $_POST['location'] ?? '',
+        'team_id' => $_POST['team_id'] ?? '',
+        'required_members' => $_POST['required_members'] ?? 3,
+        'dates' => $dates,
+        'tags' => $tags,
+        'visibility_users' => array_values(array_unique(array_merge(
+            array_map('intval', $visibility),
+            $registeredUserIds
+        ))),
+    ];
+};
+
+$formSessionKey = 'event_edit_form_' . (int)$eventId;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $posted = $captureOldFromPost();
+
     if (!\App\Services\CsrfService::validateToken($_POST['csrf_token'] ?? null)) {
         $error = 'Invalid security token. Please try again.';
-    } else {
-        $result = $eventController->updateEvent($eventId, $_POST, $userId);
-
-        if ($result['success']) {
-            $_SESSION['flash_success'] = 'Event updated successfully!';
-            header('Location: /event/view?id=' . \App\Services\IdEncoder::encode($eventId));
-            exit;
-        }
-
-        $error = $result['error'];
-        $old = [
-            'title' => $_POST['title'] ?? '',
-            'description' => $_POST['description'] ?? '',
-            'location' => $_POST['location'] ?? '',
-            'team_id' => $_POST['team_id'] ?? '',
-            'required_members' => $_POST['required_members'] ?? 3,
-            'dates' => $_POST['dates'] ?? [],
-            'tags' => $_POST['tags'] ?? [],
-            'visibility_users' => array_values(array_unique(array_merge(
-                array_map('intval', $_POST['visibility_users'] ?? []),
-                $registeredUserIds
-            ))),
-        ];
-        $teamMembers = !empty($old['team_id'])
-            ? $eventController->getTeamMembers((int)$old['team_id'])
-            : [];
-        $visibilityUserIds = $old['visibility_users'];
+        $old = $posted;
+        $_SESSION[$formSessionKey] = ['old' => $old, 'error' => $error];
+        header('Location: /event/edit?id=' . rawurlencode(\App\Services\IdEncoder::encode($eventId)));
+        exit;
     }
+
+    $_POST['dates'] = $posted['dates'];
+    $_POST['tags'] = $posted['tags'];
+    $_POST['visibility_users'] = $posted['visibility_users'];
+
+    $result = $eventController->updateEvent($eventId, $_POST, $userId);
+
+    if ($result['success']) {
+        unset($_SESSION[$formSessionKey]);
+        $_SESSION['flash_success'] = 'Event updated successfully!';
+        header('Location: /event/view?id=' . \App\Services\IdEncoder::encode($eventId));
+        exit;
+    }
+
+    $error = $result['error'];
+    $old = $posted;
+    $_SESSION[$formSessionKey] = ['old' => $old, 'error' => $error];
+    header('Location: /event/edit?id=' . rawurlencode(\App\Services\IdEncoder::encode($eventId)));
+    exit;
 }
+
+if (isset($_SESSION[$formSessionKey]) && is_array($_SESSION[$formSessionKey])) {
+    $restored = $_SESSION[$formSessionKey];
+    unset($_SESSION[$formSessionKey]);
+    if (isset($restored['old']) && is_array($restored['old'])) {
+        $old = array_merge($old, $restored['old']);
+        $old['dates'] = $normalizeDateRows($old['dates'] ?? []);
+        $old['tags'] = $normalizeTagRows($old['tags'] ?? []);
+        $old['visibility_users'] = array_values(array_unique(array_map('intval', $old['visibility_users'] ?? [])));
+    }
+    if (!empty($restored['error'])) {
+        $error = (string)$restored['error'];
+    }
+    $teamMembers = !empty($old['team_id'])
+        ? $eventController->getTeamMembers((int)$old['team_id'])
+        : [];
+    $visibilityUserIds = $old['visibility_users'];
+}
+
+// Normalize DB dates to datetime-local for first paint
+$old['dates'] = $normalizeDateRows($old['dates'] ?? []);
+$old['tags'] = $normalizeTagRows($old['tags'] ?? []);
 
 $encodedId = \App\Services\IdEncoder::encode($eventId);
 
@@ -128,8 +235,11 @@ ob_start();
 
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
-            <form method="POST" class="space-y-4">
+            <form method="POST" class="space-y-4" id="edit-event-form">
                 <?php include __DIR__ . '/../../templates/components/csrf.php'; ?>
+                <input type="hidden" name="dates_json" id="dates_json" value="">
+                <input type="hidden" name="tags_json" id="tags_json" value="">
+                <input type="hidden" name="visibility_json" id="visibility_json" value="">
 
                 <div class="form-control">
                     <label class="label">
@@ -193,8 +303,8 @@ ob_start();
                         <span class="label-text font-semibold">Select Participating Members</span>
                     </label>
                     <div id="team-members-container" class="border border-base-300 rounded-lg p-4 max-h-64 overflow-y-auto"
-                         data-selected="<?= htmlspecialchars(json_encode(array_values($visibilityUserIds))) ?>"
-                         data-locked="<?= htmlspecialchars(json_encode(array_values($registeredUserIds))) ?>">
+                         data-selected="<?= h(js_json(array_values($visibilityUserIds))) ?>"
+                         data-locked="<?= h(js_json(array_values($registeredUserIds))) ?>">
                         <?php if (empty($teamMembers)): ?>
                             <p class="text-base-content/50 text-sm">Select a team to see available members</p>
                         <?php else: ?>
@@ -261,8 +371,8 @@ ob_start();
                                     <label class="label"><span class="label-text">Date Type</span></label>
                                     <select name="dates[<?= $i ?>][date_type]" class="select select-bordered" required>
                                         <?php foreach ($dateTypeOptions as $value => $label): ?>
-                                            <option value="<?= $value ?>" <?= $dateType === $value ? 'selected' : '' ?>>
-                                                <?= $label ?>
+                                            <option value="<?= h($value) ?>" <?= $dateType === $value ? 'selected' : '' ?>>
+                                                <?= h($label) ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -275,12 +385,12 @@ ob_start();
                                 <div class="form-control">
                                     <label class="label"><span class="label-text">Start Date & Time</span></label>
                                     <input type="datetime-local" name="dates[<?= $i ?>][start_datetime]" class="input input-bordered"
-                                           value="<?= htmlspecialchars($toDatetimeLocal($date['start_datetime'] ?? '')) ?>" required>
+                                           value="<?= htmlspecialchars((string)($date['start_datetime'] ?? '')) ?>" required>
                                 </div>
                                 <div class="form-control">
                                     <label class="label"><span class="label-text">End Date & Time</span></label>
                                     <input type="datetime-local" name="dates[<?= $i ?>][end_datetime]" class="input input-bordered"
-                                           value="<?= htmlspecialchars($toDatetimeLocal($date['end_datetime'] ?? '')) ?>" required>
+                                           value="<?= htmlspecialchars((string)($date['end_datetime'] ?? '')) ?>" required>
                                 </div>
                             </div>
                         </div>
@@ -342,7 +452,7 @@ ob_start();
 <script>
 let dateIndex = <?= count($dates) ?>;
 let tagIndex = <?= count($tags) ?>;
-const lockedVisibilityIds = <?= json_encode(array_values($registeredUserIds)) ?>;
+const lockedVisibilityIds = <?= js_json(array_values($registeredUserIds)) ?>;
 
 function getSelectedVisibilityIds() {
     const container = document.getElementById('team-members-container');
@@ -372,33 +482,58 @@ function rememberSelectedVisibility() {
 }
 
 function renderMemberCheckbox(member, selected, locked) {
-    const isLocked = locked.includes(member.id);
-    const isChecked = isLocked || selected.includes(member.id);
-    const badge = isLocked ? '<span class="badge badge-success badge-sm">Registered</span>' : '';
-    const labelClass = isLocked ? 'flex items-center gap-3 p-2 rounded' : 'flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded';
+    const memberId = parseInt(member.id, 10);
+    const isLocked = locked.includes(memberId);
+    const isChecked = isLocked || selected.includes(memberId);
+
+    const label = document.createElement('label');
+    label.className = isLocked
+        ? 'flex items-center gap-3 p-2 rounded'
+        : 'flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded';
 
     if (isLocked) {
-        return `
-            <label class="${labelClass}">
-                <input type="hidden" name="visibility_users[]" value="${member.id}">
-                <input type="checkbox" class="checkbox checkbox-primary" checked disabled />
-                <div class="flex-1">
-                    <div class="font-semibold flex items-center gap-2">${member.name} ${badge}</div>
-                    <div class="text-sm text-base-content/70">${member.email}</div>
-                </div>
-            </label>
-        `;
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'visibility_users[]';
+        hidden.value = String(memberId);
+        label.appendChild(hidden);
     }
 
-    return `
-        <label class="${labelClass}">
-            <input type="checkbox" name="visibility_users[]" value="${member.id}" class="checkbox checkbox-primary" ${isChecked ? 'checked' : ''} />
-            <div class="flex-1">
-                <div class="font-semibold flex items-center gap-2">${member.name}</div>
-                <div class="text-sm text-base-content/70">${member.email}</div>
-            </div>
-        </label>
-    `;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'checkbox checkbox-primary';
+    checkbox.checked = isChecked;
+    if (isLocked) {
+        checkbox.disabled = true;
+    } else {
+        checkbox.name = 'visibility_users[]';
+        checkbox.value = String(memberId);
+    }
+    label.appendChild(checkbox);
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'flex-1';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'font-semibold flex items-center gap-2';
+    const nameEl = document.createElement('span');
+    nameEl.textContent = member.name ?? '';
+    nameRow.appendChild(nameEl);
+    if (isLocked) {
+        const badge = document.createElement('span');
+        badge.className = 'badge badge-success badge-sm';
+        badge.textContent = 'Registered';
+        nameRow.appendChild(badge);
+    }
+
+    const emailEl = document.createElement('div');
+    emailEl.className = 'text-sm text-base-content/70';
+    emailEl.textContent = member.email ?? '';
+
+    textWrap.appendChild(nameRow);
+    textWrap.appendChild(emailEl);
+    label.appendChild(textWrap);
+    return label;
 }
 
 document.getElementById('team-members-container').addEventListener('change', function(e) {
@@ -418,35 +553,79 @@ document.getElementById('team_id').addEventListener('change', function() {
         return;
     }
 
-    fetch('/api/team-members?team_id=' + teamId)
+    fetch('/api/team-members?team_id=' + encodeURIComponent(teamId))
         .then(response => response.json())
         .then(data => {
+            const list = document.createElement('div');
+            list.className = 'space-y-2';
+
             if (data.success && data.members.length > 0) {
-                let html = '<div class="space-y-2">';
                 data.members.forEach(member => {
-                    html += renderMemberCheckbox(member, selected, locked);
+                    list.appendChild(renderMemberCheckbox(member, selected, locked));
                 });
                 // Keep locked registered users even if not in new team list
-                const listedIds = data.members.map(m => m.id);
+                const listedIds = data.members.map(m => parseInt(m.id, 10));
                 locked.forEach(lockedId => {
                     if (!listedIds.includes(lockedId)) {
-                        html += `<input type="hidden" name="visibility_users[]" value="${lockedId}">`;
+                        const hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = 'visibility_users[]';
+                        hidden.value = String(lockedId);
+                        list.appendChild(hidden);
                     }
                 });
-                html += '</div>';
-                container.innerHTML = html;
+                container.replaceChildren(list);
                 rememberSelectedVisibility();
             } else {
-                let html = '<p class="text-base-content/50 text-sm mb-2">No members found in this team</p>';
+                const empty = document.createElement('p');
+                empty.className = 'text-base-content/50 text-sm mb-2';
+                empty.textContent = 'No members found in this team';
+                list.appendChild(empty);
                 locked.forEach(lockedId => {
-                    html += `<input type="hidden" name="visibility_users[]" value="${lockedId}">`;
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'visibility_users[]';
+                    hidden.value = String(lockedId);
+                    list.appendChild(hidden);
                 });
-                container.innerHTML = html;
+                container.replaceChildren(list);
             }
         })
         .catch(() => {
-            container.innerHTML = '<p class="text-error text-sm">Error loading members</p>';
+            const err = document.createElement('p');
+            err.className = 'text-error text-sm';
+            err.textContent = 'Error loading members';
+            container.replaceChildren(err);
         });
+});
+
+document.getElementById('edit-event-form').addEventListener('submit', function () {
+    const dateRows = Array.from(document.querySelectorAll('#event-dates-container .event-date-item')).map((item) => {
+        const typeEl = item.querySelector('select[name*="[date_type]"]');
+        const descEl = item.querySelector('input[name*="[description]"]');
+        const startEl = item.querySelector('input[name*="[start_datetime]"]');
+        const endEl = item.querySelector('input[name*="[end_datetime]"]');
+        return {
+            date_type: typeEl ? typeEl.value : 'competition',
+            description: descEl ? descEl.value : '',
+            start_datetime: startEl ? startEl.value : '',
+            end_datetime: endEl ? endEl.value : '',
+        };
+    });
+    document.getElementById('dates_json').value = JSON.stringify(dateRows);
+
+    const tagRows = Array.from(document.querySelectorAll('#event-tags-container .event-tag-item')).map((item) => {
+        const nameEl = item.querySelector('input[name*="[name]"]');
+        const colorEl = item.querySelector('input[name*="[color]"]');
+        return {
+            name: nameEl ? nameEl.value : '',
+            color: colorEl ? colorEl.value : '#3b82f6',
+        };
+    });
+    document.getElementById('tags_json').value = JSON.stringify(tagRows);
+
+    rememberSelectedVisibility();
+    document.getElementById('visibility_json').value = JSON.stringify(getSelectedVisibilityIds());
 });
 
 function addEventDate() {

@@ -1,0 +1,32 @@
+# Opt-in HTTPS tunnel + APP_URL=NGROK_URL.
+#
+#   docker compose -f compose.ngrok.yaml up -d
+#
+# Plain `docker compose up -d` (compose.yaml only) keeps your APP_URL and skips ngrok.
+
+include:
+  - path: compose.yaml
+
+services:
+  app:
+    environment:
+      # Overrides .env APP_URL for email links / cookies while tunneling
+      APP_URL: ${NGROK_URL}
+
+  # https://hub.docker.com/r/ngrok/ngrok
+  # docker run --net=host -e NGROK_AUTHTOKEN=... ngrok/ngrok:latest \
+  #   http $APP_PORT --url $NGROK_URL
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ${NGROK_CONTAINER_NAME:-team_comp_ngrok}
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - "http"
+      - "${APP_PORT}"
+      - "--url"
+      - "${NGROK_URL}"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      - app

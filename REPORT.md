@@ -11,6 +11,9 @@
 | AUTH-11 GET polish | 2026-10-01 — verified invalid tokens no longer show form |
 | Settings form audit | 2026-10-01 |
 | SET-05 / SET-06 verify | 2026-10-01 — both fixed on live |
+| Uploads nosniff | 2026-10-01 — verified on `/uploads/avatars/*` |
+| Team management audit | 2026-10-01 |
+| Event management audit | 2026-10-01 |
 | Audience | Development / engineering |
 | Method | Authenticated black-box review; auth + `/settings` form review |
 
@@ -24,10 +27,13 @@
 
 | Priority | Item |
 |----------|------|
+| Medium | **EVT-02** — Non-member can learn **team names** via `/event?team=` and `/event/calendar?team=` |
 | Accepted risk | **SEC-02** — Demo/admin creds on public ngrok (won't fix) |
 | Low (backlog) | **SEC-08** — Sequential opaque IDs (deferred) |
 
-**Settings (verified 2026-10-01):** SET-05 attribute encoding and SET-06 avatar upload are **fixed**. CSRF, password/email change gates, and upload type checks remain solid.
+**Settings (verified):** SET-05 / SET-06 fixed.  
+**Team management:** PASS (no new High/Medium).  
+**Events:** Mostly solid; one Medium info-disclosure (EVT-02).
 
 ---
 
@@ -59,6 +65,7 @@
 | AUTH-11 | Medium | **Fixed** | Password reset completion route not found (404) |
 | SET-05 | Medium | **Fixed** | Stored XSS / HTML injection in Settings name `value` |
 | SET-06 | Low | **Fixed** | Avatar upload save failure (functional) |
+| EVT-02 | Medium | **Open** | Team name disclosure via `/event?team=` / calendar for non-members |
 
 ---
 
@@ -223,6 +230,108 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 ---
 
+## 5c. Team management audit (2026-10-01)
+
+**Accounts:** `nanthaphat.ph@kkumail.com` (Owner on Hackthon + CTF), `lsupwp@gmail.com` (Admin on CTF only).
+
+### Surface
+
+| Route | Auth |
+|-------|------|
+| `/team/manage`, `/team/create`, `/team/join` | Login required (anon → `/auth/login`) |
+
+### Authorization / IDOR
+
+| Check | Result |
+|-------|--------|
+| u2 opens u1-only team `fnZdA2EIV2ZTAg` | No member emails / invite UI (fallback to own list) |
+| Shared team `fnZdA2EIV2ZTAQ` | Both see members (expected) |
+| u2 `transfer_ownership` | “Only team owner can transfer ownership” |
+| u2 `change_role` | “Only team owner can change roles” |
+| u2 `kick_member` (self/owner) | “Admins can only kick members” / blocked |
+| u2 `revoke_token` | “Permission denied” |
+| u2 invite/kick/transfer on private team | “Permission denied” / “not a member” / owner-only |
+
+### CSRF / XSS / invites
+
+| Check | Result |
+|-------|--------|
+| Create team wrong CSRF | “Invalid security token” |
+| Join wrong CSRF | “Invalid security token” |
+| Member search `"><img…onerror…>` | Escaped inside `value="&quot;&gt;&lt;img…"` |
+| Team name with HTML markers | Displayed as entities (`TM&quot;&gt;&lt;b…`) — no raw tags |
+| Invite tokens | 64-hex style; anon `/team/join?token=` → login |
+
+### Notes (not new vulns)
+
+| Note | Detail |
+|------|--------|
+| SEC-08 still applies | Team/user IDs share the same opaque encoder; e.g. user id for `lsupwp` matched team id `fnZdA2EIV2ZTAg` in forms. Authz checks still held. |
+| Test team leftover | A probe team named like `TM"><b…` may still exist (`fnZdA2EIV2ZTBw`) — safe to delete in UI if present. |
+| Team Settings UI | No separate settings/max_members form found on manage detail in this build (invite / roles / transfer / revoke only). |
+
+### Verdict
+
+**Team management: PASS** for this pass — no new open High/Medium findings. Remaining backlog unchanged: SEC-02 (accepted), SEC-08 (deferred).
+
+---
+
+## 5d. Event management audit (2026-10-01)
+
+**Accounts:** same two demo users. Shared event: `Panda Fight!` (`/event/view?id=fnZdA2EIV2ZTAQ`) on RedPanda CTF.
+
+### Surface / auth gate
+
+| Route | Result |
+|-------|--------|
+| `/event`, `/event/create`, `/event/calendar`, `/event/view`, `/event/edit` | Anon → login |
+| `/api/events-calendar` | Auth JSON feed (requires `start` & `end`) |
+
+### Authorization (passed)
+
+| Check | Result |
+|-------|--------|
+| Non-creator edit (GET/POST) | “Only the event creator can edit this event” |
+| Non-creator delete | “You do not have permission to delete this event” |
+| Create event on non-member team (`team_id=2` as u2) | “Only team owners and admins can create events” |
+| Encoded foreign `team_id` on create | “Team is required” / rejected |
+| View private-team event as non-member | Redirect / no access |
+| Calendar JSON as u2 | Only teams the user belongs to (e.g. RedPanda CTF) |
+| Unregister CSRF | Invalid token rejected |
+| Event title/description HTML | Escaped in list/view (`&quot;&gt;&lt;b…`, `&lt;img…`) |
+| Event search box | Escaped in `value` |
+
+### EVT-02 — Medium — Team name disclosure for non-members — **OPEN**
+
+**Component:** `/event?team={id}`, `/event/calendar?team={id}`
+
+**Description**  
+A logged-in user who is **not** a member of a team can still open that team’s event/calendar listing by guessing/using the opaque team id. The page title reveals the **team name** (e.g. “Events — RedPanda Hackthon”, “Calendar — ทีมบ้านหน่องสาหร่ายfff”) even when there are zero visible events.
+
+**Impact**  
+Information disclosure: enumerating/guessing team ids (see SEC-08) leaks team names to outsiders. Event contents themselves were not shown to non-members in this test.
+
+**Recommendation**  
+- If the user is not a member, return the same response as not-found / permission denied (no team name).  
+- Do not render “Events — {TeamName}” for unauthorized `team` query params.
+
+**Acceptance criteria**  
+Non-member requests to `/event?team=` and `/event/calendar?team=` for foreign teams do not include the real team name.
+
+### Notes
+
+| Note | Detail |
+|------|--------|
+| Event ids vs team ids | Some event view ids reuse the same encoder space as teams (e.g. shared event id equals shared team id) — reinforces SEC-08. |
+| Creator can remove others’ registration | Owner/creator UI posts `/event/unregister` with `user_id` — appears intentional moderation; confirm product intent. |
+| Calendar `team=` ignored when unauthorized | API returned the user’s normal visible events rather than erroring — OK if no foreign events leak; still fix HTML name leak (EVT-02). |
+
+### Verdict
+
+**Events: mostly PASS**, with **EVT-02** open (Medium).
+
+---
+
 ## 6. Positive auth controls (do not regress)
 
 | Area | Observation |
@@ -252,9 +361,10 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 
 ## 8. Recommended backlog order (updated)
 
-1. **SEC-08** — UUID/ULID when touching ID layer (optional)  
-2. **SEC-02** — If leaving course/demo context, rotate creds and lock the tunnel  
-3. Optional: add `X-Content-Type-Options: nosniff` on `/uploads/*` responses
+1. **EVT-02** — Hide team names from non-members on `/event?team=` and calendar  
+2. **SEC-08** — UUID/ULID when touching ID layer (optional; helps EVT-02 enumeration)  
+3. **SEC-02** — If leaving course/demo context, rotate creds and lock the tunnel  
+4. Uploads `nosniff` — already verified
 
 ---
 
@@ -274,6 +384,8 @@ Engineering reports dummy Argon2 verify for missing users. Full timing re-benchm
 - [x] AUTH-11 GET token validation *(verified live — invalid tokens hide form)*  
 - [x] SET-05 Escape `name` in Settings attribute context *(verified live)*  
 - [x] SET-06 Avatar upload save path/permissions *(verified live)*  
+- [x] Uploads `X-Content-Type-Options: nosniff` *(verified live)*  
+- [ ] EVT-02 Non-member team name disclosure on event/calendar team filter  
 
 ---
 
@@ -293,4 +405,4 @@ Disposable registrations used `*@example.com` addresses during policy/enum tests
 ---
 
 **Prepared for:** Development team  
-**Action requested:** Auth + settings code items closed aside from SEC-08 backlog and SEC-02 accepted demo risk.
+**Action requested:** Fix **EVT-02** next. SEC-02 remains accepted demo risk; SEC-08 remains backlog.

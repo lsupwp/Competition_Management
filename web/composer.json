@@ -12,7 +12,8 @@
             "App\\": "src/"
         },
         "files": [
-            "src/bootstrap_timezone.php"
+            "src/bootstrap_timezone.php",
+            "src/helpers.php"
         ]
     },
     "config": {

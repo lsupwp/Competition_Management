@@ -217,7 +217,7 @@ class ActivityLogService
             return null;
         }
 
-        $trusted = Env::get('TRUSTED_PROXIES', '127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16');
+        $trusted = Env::get('TRUSTED_PROXIES', '127.0.0.1,::1');
         $trustedList = array_filter(array_map('trim', explode(',', (string)$trusted)));
 
         if (!self::ipIsTrusted($remote, $trustedList)) {

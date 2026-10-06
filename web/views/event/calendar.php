@@ -19,17 +19,15 @@ $filterTeamId = null;
 $filterTeam = null;
 $teamQuery = '';
 if (!empty($_GET['team'])) {
-    $filterTeamId = \App\Services\IdEncoder::decode($_GET['team']);
-    if ($filterTeamId) {
-        $filterTeam = $eventController->getTeamById((int)$filterTeamId);
+    $decodedTeamId = \App\Services\IdEncoder::decode($_GET['team']);
+    if ($decodedTeamId) {
+        $filterTeam = $eventController->getTeamByIdForMember((int)$decodedTeamId, $userId);
         if ($filterTeam) {
+            $filterTeamId = (int)$filterTeam['id'];
             $teamQuery = urlencode(\App\Services\IdEncoder::encode($filterTeamId));
             $title = 'Calendar — ' . $filterTeam['name'] . ' - Team Competition';
-        } else {
-            $filterTeamId = null;
         }
-    } else {
-        $filterTeamId = null;
+        // Non-members: ignore team filter (no name disclosure)
     }
 }
 
@@ -194,7 +192,7 @@ ob_start();
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('event-calendar');
-    const feedUrl = <?= json_encode($feedUrl) ?>;
+    const feedUrl = <?= js_json($feedUrl) ?>;
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',

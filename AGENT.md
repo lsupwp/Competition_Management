@@ -23,13 +23,12 @@
 - **Routing:** File-based (filename = route path)
   - Frontend: `web/views/*.php` → URL path
     - `web/views/index.php` → `/` (via DirectoryIndex)
-    - `web/views/team.php` → `/team`
-  - Reusable components: `web/api/*.php` → include ใน views
-    - `web/api/hello.php` → `include __DIR__ . '/../api/hello.php';`
+    - `web/views/team/manage.php` → `/team/manage`
+  - JSON/AJAX: `web/api/*.php` → `/api/...`
+    - e.g. `web/api/events-calendar.php` → `/api/events-calendar`
 - **HTTP Methods:** ใช้ `$_SERVER['REQUEST_METHOD']` ตรวจสอบ GET/POST
-- **No API endpoints:** ทุกอย่างเป็น PHP page + include
-- **No .htaccess:** Apache config via `docker/00-arpache.conf`
 - **Config via .env:** All environment variables in `.env`
+- **No .htaccess:** Apache config via `docker/00-arpache.conf`
 
 ## Folder Structure
 ```
@@ -111,29 +110,12 @@ $stmt->close();
 // web/views/index.php
 $title = 'Page Title';
 
-// Include reusable component (once)
-include_once __DIR__ . '/../api/hello.php';
-
 ob_start();
 ?>
 <!-- HTML content -->
-<div class="alert alert-info">
-    <span><?= htmlspecialchars($helloMessage) ?></span>
-</div>
 <?php
 $content = ob_get_clean();
 include_once __DIR__ . '/../templates/layout.php';
-```
-
-### Reusable component
-```php
-<?php
-// web/api/hello.php
-$helloMessage = 'Hello from API!';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $helloMessage = 'POST request received!';
-}
 ```
 
 ### Template usage

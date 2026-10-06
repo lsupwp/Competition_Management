@@ -1,4 +1,5 @@
 -- Team Competition Management System Database Schema
+-- Single source of truth (fresh installs via compose initdb / re-import this file).
 -- Soft delete: ใช้ deleted_at (NULL = active, timestamp = deleted)
 -- Timestamps: created_at, updated_at ทุก table
 
@@ -8,6 +9,7 @@
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
+    pending_email VARCHAR(255) NULL,
     name VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255),
     avatar_url VARCHAR(500),
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at TIMESTAMP NULL,
     
     INDEX idx_email (email),
+    INDEX idx_pending_email (pending_email),
     INDEX idx_role (role),
     INDEX idx_verification_token (verification_token),
     INDEX idx_password_reset_token (password_reset_token),
@@ -63,7 +66,8 @@ CREATE TABLE IF NOT EXISTS team_members (
     
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_team_user (team_id, user_id, deleted_at),
+    active_slot TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) VIRTUAL,
+    UNIQUE KEY unique_active_team_user (team_id, user_id, active_slot),
     INDEX idx_team_id (team_id),
     INDEX idx_user_id (user_id),
     INDEX idx_role (role),
@@ -177,7 +181,8 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
-    UNIQUE KEY unique_event_user (event_id, user_id, deleted_at),
+    active_slot TINYINT GENERATED ALWAYS AS (IF(deleted_at IS NULL, 1, NULL)) VIRTUAL,
+    UNIQUE KEY unique_active_event_user (event_id, user_id, active_slot),
     INDEX idx_event_id (event_id),
     INDEX idx_user_id (user_id),
     INDEX idx_team_id (team_id),
@@ -275,3 +280,12 @@ STARTS CURRENT_TIMESTAMP
 ON COMPLETION PRESERVE
 ENABLE
 DO CALL purge_soft_deleted();
+
+-- =====================================================
+-- APP USER PRIVILEGES (soft-delete only; hard DELETE via root EVENT)
+-- Docker creates MYSQL_USER with ALL PRIVILEGES — narrow it here.
+-- Underscore in DB name is escaped (\_) so GRANT matches literally.
+-- =====================================================
+REVOKE ALL PRIVILEGES ON `team\_competition`.* FROM 'app_user'@'%';
+GRANT SELECT, INSERT, UPDATE ON `team\_competition`.* TO 'app_user'@'%';
+FLUSH PRIVILEGES;

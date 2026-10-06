@@ -32,6 +32,7 @@ class EmailService
     public function sendVerificationEmail(string $toEmail, string $toName, string $token): bool
     {
         try {
+            $toName = header_safe($toName);
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail, $toName);
 
@@ -51,6 +52,8 @@ class EmailService
 
     private function getVerificationEmailTemplate(string $name, string $url): string
     {
+        $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+        $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
         return "
         <!DOCTYPE html>
         <html lang='en'>
@@ -66,13 +69,13 @@ class EmailService
                 </div>
                 <div style='padding: 40px 30px;'>
                     <h2 style='color: #333333; margin-top: 0;'>Verify Your Email</h2>
-                    <p style='color: #555555; line-height: 1.6;'>Hello $name,</p>
+                    <p style='color: #555555; line-height: 1.6;'>Hello {$safeName},</p>
                     <p style='color: #555555; line-height: 1.6;'>Thank you for registering with us. Please click the button below to verify your email address.</p>
                     <div style='text-align: center; margin: 30px 0;'>
-                        <a href='$url' style='background-color: #0ea5e9; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Verify Email</a>
+                        <a href='{$safeUrl}' style='background-color: #0ea5e9; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Verify Email</a>
                     </div>
                     <p style='color: #888888; font-size: 14px; line-height: 1.6;'>Or copy this link and paste it in your browser:</p>
-                    <p style='color: #0ea5e9; font-size: 14px; word-break: break-all;'>$url</p>
+                    <p style='color: #0ea5e9; font-size: 14px; word-break: break-all;'>{$safeUrl}</p>
                     <p style='color: #888888; font-size: 14px; line-height: 1.6;'>This link will expire in 24 hours.</p>
                 </div>
                 <div style='background-color: #f9f9f9; padding: 20px 30px; text-align: center;'>
@@ -86,6 +89,7 @@ class EmailService
     public function sendPasswordResetEmail(string $toEmail, string $toName, string $token): bool
     {
         try {
+            $toName = header_safe($toName);
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail, $toName);
 
@@ -142,6 +146,7 @@ class EmailService
     public function sendInvitationEmail(string $toEmail, string $teamName, string $token): bool
     {
         try {
+            $teamName = header_safe($teamName);
             $this->mail->clearAddresses();
             $this->mail->addAddress($toEmail);
 
@@ -161,6 +166,8 @@ class EmailService
 
     private function getInvitationEmailTemplate(string $teamName, string $url): string
     {
+        $safeTeamName = htmlspecialchars($teamName, ENT_QUOTES, 'UTF-8');
+        $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
         return "
         <!DOCTYPE html>
         <html lang='en'>
@@ -176,13 +183,13 @@ class EmailService
                 </div>
                 <div style='padding: 40px 33px;'>
                     <h2 style='color: #333333; margin-top: 0;'>Team Invitation</h2>
-                    <p style='color: #555555; line-height: 1.6;'>You've been invited to join the team <strong>$teamName</strong>.</p>
+                    <p style='color: #555555; line-height: 1.6;'>You've been invited to join the team <strong>{$safeTeamName}</strong>.</p>
                     <p style='color: #555555; line-height: 1.6;'>Click the button below to accept the invitation and join the team.</p>
                     <div style='text-align: center; margin: 30px 0;'>
-                        <a href='$url' style='background-color: #0ea5e9; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Accept Invitation</a>
+                        <a href='{$safeUrl}' style='background-color: #0ea5e9; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Accept Invitation</a>
                     </div>
                     <p style='color: #888888; font-size: 14px; line-height: 1.6;'>Or copy this link and paste it in your browser:</p>
-                    <p style='color: #0ea5e9; font-size: 14px; word-break: break-all;'>$url</p>
+                    <p style='color: #0ea5e9; font-size: 14px; word-break: break-all;'>{$safeUrl}</p>
                     <p style='color: #888888; font-size: 14px; line-height: 1.6;'>This invitation will expire in 7 days.</p>
                 </div>
                 <div style='background-color: #f9f9f9; padding: 20px 30px; text-align: center;'>

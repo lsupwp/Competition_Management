@@ -12,8 +12,16 @@ class IdEncoder
     private static function init(): void
     {
         if (self::$key === null) {
-            self::$key = Env::get('APP_KEY', 'default-secret-key-change-in-production')
-                ?? 'default-secret-key-change-in-production';
+            $key = Env::get('APP_KEY');
+            $weak = ($key === null || $key === '' || $key === 'change-me-to-a-random-string'
+                || $key === 'default-secret-key-change-in-production');
+            $env = Env::get('APP_ENV', 'production') ?? 'production';
+            if ($weak && $env !== 'development' && $env !== 'local') {
+                throw new \RuntimeException('APP_KEY must be set to a strong secret in non-development environments');
+            }
+            self::$key = $weak
+                ? 'default-secret-key-change-in-production'
+                : $key;
         }
     }
     

@@ -58,10 +58,10 @@ $homeHref = $isAdminUser ? '/activity' : '/';
                 <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
                     <div class="w-9 sm:w-10 rounded-full">
                         <?php if (!empty($_SESSION['user']['avatar_url'])): ?>
-                        <img alt="User Avatar" src="<?= htmlspecialchars($_SESSION['user']['avatar_url']) ?>" />
+                        <img alt="User Avatar" src="<?= safe_upload_url($_SESSION['user']['avatar_url'] ?? '') ?>" />
                         <?php else: ?>
                         <div class="bg-primary text-primary-content flex items-center justify-center h-full w-full text-lg font-bold">
-                            <?= strtoupper(substr($_SESSION['user']['name'] ?? 'U', 0, 1)) ?>
+                            <?= htmlspecialchars(strtoupper(substr((string)($_SESSION['user']['name'] ?? 'U'), 0, 1)), ENT_QUOTES, 'UTF-8') ?>
                         </div>
                         <?php endif; ?>
                     </div>
