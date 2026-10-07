@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS users (
     verification_token_expires_at TIMESTAMP NULL,
     password_reset_token VARCHAR(255) NULL,
     password_reset_token_expires_at TIMESTAMP NULL,
-    last_login_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
@@ -231,23 +230,6 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     INDEX idx_action (action),
     INDEX idx_entity (entity_type, entity_id),
     INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- =====================================================
--- SESSIONS TABLE (optional - สำหรับ session management)
--- =====================================================
-CREATE TABLE IF NOT EXISTS sessions (
-    id VARCHAR(255) PRIMARY KEY,
-    user_id INT NOT NULL,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    payload TEXT,
-    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_id (user_id),
-    INDEX idx_last_activity (last_activity)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
